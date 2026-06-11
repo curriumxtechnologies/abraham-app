@@ -1,0 +1,9 @@
+{
+  "appId": "com.abraham.hostix",
+  "appName": "Hostix",
+  "webDir": "dist",
+  "server": {
+    "url": "https://abraham-app-six.vercel.app",
+    "cleartext": true
+  }
+}

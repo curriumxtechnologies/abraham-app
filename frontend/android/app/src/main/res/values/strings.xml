@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Hostix</string>
+    <string name="title_activity_main">Hostix</string>
+    <string name="package_name">com.abraham.hostix</string>
+    <string name="custom_url_scheme">com.abraham.hostix</string>
+</resources>
