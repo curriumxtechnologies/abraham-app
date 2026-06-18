@@ -1,11 +1,17 @@
 import { useState } from 'react';
-import { ArrowLeft, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import Button from '../../components/buttons/Button';
-import FloatingShapes from '../../components/common/FloatingShapes';
-import logoPath from '../../assets/images/logo.png';
+import { 
+  Mail, 
+  Lock, 
+  Eye, 
+  EyeOff, 
+  Shield,
+  Building2
+} from 'lucide-react';
+import Button from '../../../components/buttons/Button';
+import logoPath from '../../../assets/images/logo.png';
 
-const Login = () => {
+const AdminLogin = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -15,9 +21,9 @@ const Login = () => {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
 
-  // Demo credentials
-  const DEMO_EMAIL = 'hostix@abraham.com';
-  const DEMO_PASSWORD = 'hostixapp';
+  // Demo admin credentials
+  const ADMIN_EMAIL = 'admin@hostix.com';
+  const ADMIN_PASSWORD = 'admin123';
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -69,7 +75,7 @@ const Login = () => {
     try {
       await new Promise((resolve, reject) => {
         setTimeout(() => {
-          if (formData.email === DEMO_EMAIL && formData.password === DEMO_PASSWORD) {
+          if (formData.email === ADMIN_EMAIL && formData.password === ADMIN_PASSWORD) {
             resolve();
           } else {
             reject(new Error('Invalid credentials'));
@@ -77,7 +83,7 @@ const Login = () => {
         }, 1500);
       });
       
-      navigate('/home');
+      navigate('/admin/dashboard');
     } catch (error) {
       setErrors({ 
         submit: 'Invalid email or password. Please try again.' 
@@ -88,49 +94,46 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5FEFF]">
-      {/* Mobile container */}
-      <div className="max-w-md mx-auto relative min-h-screen overflow-hidden">
-        <FloatingShapes />
+    <div className="min-h-screen bg-gradient-to-br from-[#F5FEFF] via-white to-[#AAC0E1]/20 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+      
+      {/* Background Decorative Elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-[#AAC0E1] rounded-full opacity-10" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-[#0E2F76] rounded-full opacity-5" />
+      </div>
+      
+      {/* Login Container */}
+      <div className="relative w-full max-w-md">
         
-        {/* Main Content Container */}
-        <div className="relative z-10 flex flex-col min-h-screen px-6 py-8">
-          
-          {/* Back Button */}
-          <button 
-            onClick={() => navigate('/')}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/80 backdrop-blur-sm border border-[#AAC0E1]/20 shadow-sm hover:bg-white transition-all duration-300 mb-6"
-          >
-            <ArrowLeft size={20} className="text-[#0E2F76]" strokeWidth={2} />
-          </button>
-          
-          {/* Header Section */}
-          <div className="mb-8">
-            <div className="mb-6 flex justify-center">
-              <div className="p-3 bg-white rounded-[24px] shadow-lg shadow-[#0E2F76]/5">
-                <img 
-                  src={logoPath} 
-                  alt="Hostix Logo" 
-                  className="w-16 h-16 object-contain"
-                />
-              </div>
-            </div>
-            
-            <h1 className="text-3xl font-bold text-[#0E2F76] mb-2 font-inter text-center">
-              Welcome Back
-            </h1>
-            <p className="text-center text-[#0E2F76]/60 text-sm font-inter">
-              Sign in to access your hostel account
-            </p>
+        {/* Logo and Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center p-3 bg-white rounded-[24px] shadow-lg shadow-[#0E2F76]/5 mb-6">
+            <img 
+              src={logoPath} 
+              alt="Hostix Logo" 
+              className="w-16 h-16 object-contain"
+            />
           </div>
           
-          {/* Login Form */}
-          <form onSubmit={handleSubmit} className="flex-1 flex flex-col space-y-5">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Shield size={24} className="text-[#0E2F76]" />
+            <h1 className="text-3xl sm:text-4xl font-bold text-[#0E2F76] font-inter">
+              Admin Portal
+            </h1>
+          </div>
+          <p className="text-[#0E2F76]/60 text-sm font-inter">
+            Sign in to manage hostel operations
+          </p>
+        </div>
+        
+        {/* Login Card */}
+        <div className="bg-white rounded-[24px] p-6 sm:p-8 shadow-lg shadow-[#0E2F76]/5 border border-[#AAC0E1]/20">
+          <form onSubmit={handleSubmit} className="space-y-5">
             
             {/* Email Input */}
             <div>
               <label className="block text-sm font-medium text-[#0E2F76] mb-2 font-inter">
-                Email Address
+                Admin Email
               </label>
               <div className="relative">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2">
@@ -141,8 +144,8 @@ const Login = () => {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  placeholder="hostix@abraham.com"
-                  className={`w-full pl-12 pr-4 py-4 bg-white rounded-[16px] border ${
+                  placeholder="admin@hostix.com"
+                  className={`w-full pl-12 pr-4 py-4 bg-[#F5FEFF] rounded-[16px] border ${
                     errors.email ? 'border-red-400' : 'border-[#AAC0E1]/30'
                   } focus:border-[#0E2F76] focus:ring-2 focus:ring-[#0E2F76]/10 outline-none transition-all duration-300 text-[#0E2F76] placeholder-[#AAC0E1] font-inter text-base`}
                   autoComplete="email"
@@ -169,7 +172,7 @@ const Login = () => {
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="Enter your password"
-                  className={`w-full pl-12 pr-12 py-4 bg-white rounded-[16px] border ${
+                  className={`w-full pl-12 pr-12 py-4 bg-[#F5FEFF] rounded-[16px] border ${
                     errors.password ? 'border-red-400' : 'border-[#AAC0E1]/30'
                   } focus:border-[#0E2F76] focus:ring-2 focus:ring-[#0E2F76]/10 outline-none transition-all duration-300 text-[#0E2F76] placeholder-[#AAC0E1] font-inter text-base`}
                   autoComplete="current-password"
@@ -208,44 +211,52 @@ const Login = () => {
             {/* Demo Credentials Info */}
             {!errors.submit && (
               <div className="p-4 bg-[#AAC0E1]/10 border border-[#AAC0E1]/20 rounded-[16px]">
-                <p className="text-[#0E2F76]/60 text-xs font-inter text-center">
-                  Demo: hostix@abraham.com / hostixapp
-                </p>
+                <div className="flex items-center gap-2">
+                  <Building2 size={16} className="text-[#0E2F76]/60" />
+                  <p className="text-[#0E2F76]/60 text-xs font-inter">
+                    Demo: admin@hostix.com / admin123
+                  </p>
+                </div>
               </div>
             )}
             
-            {/* Spacer */}
-            <div className="flex-1" />
-            
             {/* Login Button */}
-            <div className="pb-6">
-              <Button
-                type="submit"
-                variant="primary"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Signing in...
-                  </div>
-                ) : (
-                  'Sign In'
-                )}
-              </Button>
-              
-              <p className="text-center text-[#0E2F76]/40 text-xs mt-4 font-inter">
-                Use your school credentials to sign in
-              </p>
-            </div>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <div className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Signing in...
+                </div>
+              ) : (
+                'Sign In to Admin'
+              )}
+            </Button>
+            
+            <p className="text-center text-[#0E2F76]/40 text-xs font-inter">
+              Authorized personnel only
+            </p>
           </form>
+        </div>
+        
+        {/* Back to Website Link */}
+        <div className="text-center mt-6">
+          <button
+            onClick={() => navigate('/')}
+            className="text-sm text-[#0E2F76]/50 hover:text-[#0E2F76] transition-colors duration-300 font-inter"
+          >
+            ← Back to Student Portal
+          </button>
         </div>
       </div>
     </div>
   );
 };
 
-export default Login;
+export default AdminLogin;

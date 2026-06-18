@@ -1,12 +1,9 @@
-import { RouterProvider } from 'react-router-dom';
+import { RouterProvider, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import router from './routes';
 
 function App() {
-  return (
-    <div className="max-w-md mx-auto relative">
-      <RouterProvider router={router} />
-    </div>
-  );
+  return <RouterProvider router={router} />;
 }
 
 export default App;

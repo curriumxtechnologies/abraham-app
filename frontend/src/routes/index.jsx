@@ -6,8 +6,10 @@ import QRScanner from '../pages/QRScanner';
 import Complaints from '../pages/Complaints';
 import Profile from '../pages/Profile';
 import Settings from '../pages/Settings';
+import adminRoutes from './adminRoutes';
 
 const router = createBrowserRouter([
+  // Student Routes
   {
     path: '/',
     element: <Landing />,
@@ -18,6 +20,10 @@ const router = createBrowserRouter([
   },
   {
     path: '/home',
+    element: <HomePage />,
+  },
+  {
+    path: '/dashboard',
     element: <HomePage />,
   },
   {
@@ -36,6 +42,8 @@ const router = createBrowserRouter([
     path: '/settings',
     element: <Settings />,
   },
+  
+  ...adminRoutes,
 ]);
 
 export default router;
