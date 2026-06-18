@@ -76,7 +76,7 @@ const AdminLayout = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50">
       
       {/* Mobile Overlay */}
       {sidebarOpen && (
@@ -86,13 +86,13 @@ const AdminLayout = ({ children }) => {
         />
       )}
       
-      {/* Sidebar */}
-      <aside className={`fixed top-0 left-0 h-full w-72 bg-white border-r border-gray-200 z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
+      {/* Sidebar - Fixed position, full screen height */}
+      <aside className={`fixed top-0 left-0 h-screen w-72 bg-white border-r border-gray-200 z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      } lg:translate-x-0 lg:static lg:z-auto`}>
+      } lg:translate-x-0`}>
         
         {/* Sidebar Header */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-[#0E2F76] flex items-center justify-center shadow-lg shadow-[#0E2F76]/20">
               <img src={logoPath} alt="Hostix" className="w-8 h-8 object-contain brightness-0 invert" />
@@ -104,7 +104,7 @@ const AdminLayout = ({ children }) => {
           </div>
         </div>
         
-        {/* Navigation */}
+        {/* Navigation - Takes remaining space, scrollable */}
         <nav className="p-4 space-y-1 flex-1 overflow-y-auto">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">
             Main Menu
@@ -141,8 +141,8 @@ const AdminLayout = ({ children }) => {
           })}
         </nav>
         
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-gray-200">
+        {/* Sidebar Footer - Stays at bottom */}
+        <div className="p-4 border-t border-gray-200 flex-shrink-0">
           <div className="bg-gray-50 rounded-xl p-4 mb-3">
             <div className="flex items-center gap-2 mb-2">
               <Building2 size={16} className="text-[#0E2F76]" />
@@ -189,8 +189,8 @@ const AdminLayout = ({ children }) => {
         </div>
       </aside>
       
-      {/* Main Content Area - Takes remaining width */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Main Content Area - Offset by sidebar width on desktop */}
+      <div className="lg:ml-72 min-h-screen flex flex-col">
         
         {/* Top Header */}
         <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
@@ -317,13 +317,13 @@ const AdminLayout = ({ children }) => {
           </div>
         </header>
         
-        {/* Page Content - Full width */}
-        <main className="flex-1 p-6 lg:p-8 w-full">
+        {/* Page Content - Takes remaining height */}
+        <main className="flex-1 p-6 lg:p-8">
           {children}
         </main>
         
         {/* Footer */}
-        <footer className="border-t border-gray-200 bg-white px-6 lg:px-8 py-4 w-full">
+        <footer className="border-t border-gray-200 bg-white px-6 lg:px-8 py-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
             <p className="text-xs text-gray-500">
               © 2026 Hostix. All rights reserved.
