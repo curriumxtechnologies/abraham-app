@@ -17,7 +17,8 @@ import {
   LogIn,
   X,
   Loader2,
-  ChevronRight,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import FloatingShapes from '../../components/common/FloatingShapes';
 import MainLayout from '../../layouts/MainLayout';
@@ -38,6 +39,7 @@ const HomePage = () => {
   const [allocating, setAllocating] = useState(false);
   const [selectedHostelId, setSelectedHostelId] = useState('');
   const [selectedBuildingId, setSelectedBuildingId] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState({ hostel: false, building: false });
 
   // ─── Queries ──────────────────────────────────────────────────
   const { data: userData, isLoading: userLoading, error: userError, refetch: refetchUser } = useGetUserInfoQuery();
@@ -64,7 +66,46 @@ const HomePage = () => {
   const latestRecord = checkInHistory.length > 0 ? checkInHistory[0] : null;
   const isInside = allocatedBunk ? (latestRecord ? !!latestRecord.returnTime : true) : null;
 
-  // ─── Recent activities (only if allocated) ──────────────────
+  // ─── Memoized lists for dropdowns ────────────────────────────
+  const hostelOptions = useMemo(() => hostels, [hostels]);
+
+  const buildingOptions = useMemo(() => {
+    if (!selectedHostelId) return [];
+    const hostel = hostels.find((h) => h._id === selectedHostelId);
+    return hostel?.buildings || [];
+  }, [selectedHostelId, hostels]);
+
+  const roomOptions = useMemo(() => {
+    if (!selectedBuildingId) return [];
+    const hostel = hostels.find((h) => h._id === selectedHostelId);
+    const building = hostel?.buildings?.find((b) => b._id === selectedBuildingId);
+    return building?.rooms || [];
+  }, [selectedHostelId, selectedBuildingId, hostels]);
+
+  // Auto-select first hostel/building if only one available
+  useEffect(() => {
+    if (showHostelModal && !selectedHostelId && hostelOptions.length === 1) {
+      setSelectedHostelId(hostelOptions[0]._id);
+    }
+  }, [showHostelModal, hostelOptions, selectedHostelId]);
+
+  useEffect(() => {
+    if (selectedHostelId && !selectedBuildingId && buildingOptions.length === 1) {
+      setSelectedBuildingId(buildingOptions[0]._id);
+    }
+  }, [selectedHostelId, buildingOptions, selectedBuildingId]);
+
+  // Reset selection when modal closes
+  useEffect(() => {
+    if (!showHostelModal) {
+      setSelectedBunkId(null);
+      setSelectedHostelId('');
+      setSelectedBuildingId('');
+      setDropdownOpen({ hostel: false, building: false });
+    }
+  }, [showHostelModal]);
+
+  // ─── Recent activities (unchanged) ──────────────────────────
   const recentActivities = useMemo(() => {
     if (!allocatedBunk) return [];
     const activities = [];
@@ -111,7 +152,6 @@ const HomePage = () => {
     try {
       const result = await allocateBunk({ bunkId: selectedBunkId }).unwrap();
       if (result.success) {
-        // Refetch allocation and close modal
         await refetchAllocation();
         await refetchUser();
         setShowHostelModal(false);
@@ -128,16 +168,7 @@ const HomePage = () => {
     }
   };
 
-  // Reset selection when modal closes
-  useEffect(() => {
-    if (!showHostelModal) {
-      setSelectedBunkId(null);
-      setSelectedHostelId('');
-      setSelectedBuildingId('');
-    }
-  }, [showHostelModal]);
-
-  // ─── Loading / Error states ──────────────────────────────────
+  // ─── Loading / Error states (unchanged) ──────────────────────
   if (userLoading || allocLoading || historyLoading || complaintsLoading) {
     return (
       <MainLayout>
@@ -178,6 +209,52 @@ const HomePage = () => {
       done: 'bg-green-50 text-green-600 border-green-200',
     };
     return colors[status] || colors.pending;
+  };
+
+  // ─── Custom Dropdown Component ──────────────────────────────
+  const CustomDropdown = ({ options, value, onChange, placeholder, label, id, disabled }) => {
+    const [open, setOpen] = useState(false);
+    const selectedOption = options.find((opt) => opt._id === value);
+
+    return (
+      <div className="relative">
+        {label && <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>}
+        <button
+          type="button"
+          onClick={() => !disabled && setOpen(!open)}
+          className={`w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10 transition-all duration-200 ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+          disabled={disabled}
+        >
+          <span className={selectedOption ? 'text-gray-900' : 'text-gray-400'}>
+            {selectedOption ? selectedOption.name || selectedOption.roomNumber : placeholder}
+          </span>
+          {open ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+        </button>
+        {open && !disabled && (
+          <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            {options.length === 0 ? (
+              <div className="px-4 py-3 text-sm text-gray-500">No options available</div>
+            ) : (
+              options.map((opt) => (
+                <button
+                  key={opt._id}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt._id);
+                    setOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-2.5 text-sm hover:bg-[#AAC0E1]/10 transition-all duration-200 ${
+                    opt._id === value ? 'bg-[#AAC0E1]/20 text-[#0E2F76] font-medium' : 'text-gray-700'
+                  }`}
+                >
+                  {opt.name || opt.roomNumber}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   // ─── Render ──────────────────────────────────────────────────
@@ -455,7 +532,7 @@ const HomePage = () => {
       {/* ─── Hostel Selection Modal ────────────────────────────── */}
       {showHostelModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-[32px] w-full max-w-md max-h-[80vh] overflow-y-auto relative animate-slideUp">
+          <div className="bg-white rounded-[32px] w-full max-w-md max-h-[85vh] overflow-y-auto relative animate-slideUp mt-8 md:mt-0">
             {/* Header */}
             <div className="sticky top-0 bg-white z-10 px-6 py-5 border-b border-[#AAC0E1]/20 flex items-center justify-between rounded-t-[32px]">
               <h2 className="text-xl font-bold text-[#0E2F76] font-inter">
@@ -482,60 +559,38 @@ const HomePage = () => {
                 </div>
               ) : hostels.length > 0 ? (
                 <div className="space-y-4">
-                  {/* Hostel filter (if multiple) */}
-                  {hostels.length > 1 && (
-                    <div className="mb-2">
-                      <label className="text-xs font-medium text-gray-600">Select Hostel</label>
-                      <select
-                        value={selectedHostelId}
-                        onChange={(e) => {
-                          setSelectedHostelId(e.target.value);
-                          setSelectedBuildingId('');
-                          setSelectedBunkId(null);
-                        }}
-                        className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
-                      >
-                        <option value="">-- Choose Hostel --</option>
-                        {hostels.map((h) => (
-                          <option key={h._id} value={h._id}>
-                            {h.name} ({h.type})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                  {/* Custom Dropdown: Hostel */}
+                  <CustomDropdown
+                    label="Select Hostel"
+                    options={hostelOptions}
+                    value={selectedHostelId}
+                    onChange={(id) => {
+                      setSelectedHostelId(id);
+                      setSelectedBuildingId('');
+                      setSelectedBunkId(null);
+                    }}
+                    placeholder="-- Choose Hostel --"
+                    disabled={hostels.length === 1}
+                  />
 
-                  {/* Building selection (if multiple) */}
-                  {selectedHostelId && (
-                    <div className="mb-2">
-                      <label className="text-xs font-medium text-gray-600">Select Building</label>
-                      <select
-                        value={selectedBuildingId}
-                        onChange={(e) => {
-                          setSelectedBuildingId(e.target.value);
-                          setSelectedBunkId(null);
-                        }}
-                        className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
-                      >
-                        <option value="">-- Choose Building --</option>
-                        {hostels
-                          .find((h) => h._id === selectedHostelId)
-                          ?.buildings?.map((b) => (
-                            <option key={b._id} value={b._id}>
-                              {b.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  )}
+                  {/* Custom Dropdown: Building */}
+                  <CustomDropdown
+                    label="Select Building"
+                    options={buildingOptions}
+                    value={selectedBuildingId}
+                    onChange={(id) => {
+                      setSelectedBuildingId(id);
+                      setSelectedBunkId(null);
+                    }}
+                    placeholder="-- Choose Building --"
+                    disabled={!selectedHostelId || buildingOptions.length === 1}
+                  />
 
                   {/* Rooms & Bunks */}
                   {selectedBuildingId && (
-                    <div className="space-y-3">
-                      {hostels
-                        .find((h) => h._id === selectedHostelId)
-                        ?.buildings?.find((b) => b._id === selectedBuildingId)
-                        ?.rooms?.map((room) => {
+                    <div className="space-y-3 mt-2">
+                      {roomOptions.length > 0 ? (
+                        roomOptions.map((room) => {
                           const availableBunks = room.bunks?.filter((b) => b.isAvailable) || [];
                           if (availableBunks.length === 0) return null;
                           return (
@@ -565,7 +620,12 @@ const HomePage = () => {
                               </div>
                             </div>
                           );
-                        })}
+                        })
+                      ) : (
+                        <div className="text-center py-4 text-sm text-[#0E2F76]/50">
+                          No rooms available in this building.
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
