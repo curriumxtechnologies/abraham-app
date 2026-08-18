@@ -1,7 +1,26 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
+// Determine the base URL dynamically
+const getBaseUrl = () => {
+  // 1. Use environment variable if provided
+  if (import.meta.env.VITE_API_URL) {
+    return `${import.meta.env.VITE_API_URL}/api`;
+  }
+
+  // 2. If the app is running on localhost, point to local API
+  if (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1'
+  ) {
+    return 'http://localhost:8000/api';
+  }
+
+  // 3. Production default
+  return 'https://abraham-app-api.onrender.com/api';
+};
+
 const rawBaseQuery = fetchBaseQuery({
-  baseUrl: `${import.meta.env.VITE_API_URL || 'https://abraham-app-api.onrender.com'}/api`,
+  baseUrl: getBaseUrl(), // dynamically set
   credentials: 'include',
   prepareHeaders: (headers) => {
     return headers;
