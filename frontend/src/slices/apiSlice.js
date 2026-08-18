@@ -1,7 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 
 const rawBaseQuery = fetchBaseQuery({
-  baseUrl: `${import.meta.env.VITE_API_URL || ''}/api`,
+  baseUrl: `${import.meta.env.VITE_API_URL || 'https://abraham-app-api.onrender.com'}/api`,
   credentials: 'include',
   prepareHeaders: (headers) => {
     return headers;
