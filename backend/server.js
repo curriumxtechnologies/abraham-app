@@ -4,16 +4,21 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import dns from 'dns'; // 👈 added for DNS resolution fix
 
 import userRoutes from './routes/userRoutes.js';
-import allocationRoutes from './routes/allocationRoutes.js'; // protected routes (no webhook)
-import checkInRoutes from './routes/checkInRoutes.js'; // protected routes (no webhook)
-import complaintRoutes from './routes/complaintRoutes.js'; // protected routes (no webhook)
+import allocationRoutes from './routes/allocationRoutes.js';
+import checkInRoutes from './routes/checkInRoutes.js';
+import complaintRoutes from './routes/complaintRoutes.js';
 import { handlePaystackWebhook } from './controllers/hostelAllocationController.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 const app = express();
 dotenv.config();
+
+// Fix DNS SRV resolution issues on Windows/VPN
+dns.setDefaultResultOrder('ipv4first');
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/myapp';
@@ -21,7 +26,7 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/myapp';
 // ─── CORS ──────────────────────────────────────────────────────────
 const allowedOrigins = [
   'https://localhost',
-  'http://localhost',
+  'http://localhost:1000',
 ];
 
 app.use(cors({
@@ -50,11 +55,10 @@ app.get("/", (req, res) => {
 });
 
 app.use('/api/users', userRoutes);
-
-// Mount the protected allocation routes (everything except webhook)
 app.use('/api/hostel', allocationRoutes);
 app.use('/api/checkin', checkInRoutes);
 app.use('/api/complaints', complaintRoutes);
+
 // ─── Error handling ──────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
