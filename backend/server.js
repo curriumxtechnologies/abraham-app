@@ -26,6 +26,7 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/myapp';
 const allowedOrigins = [
   'https://localhost',
   'http://localhost:1000',
+  'https://abraham-app-six.vercel.app'
 ];
 
 app.use(cors({
