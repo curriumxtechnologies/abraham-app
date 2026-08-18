@@ -20,9 +20,8 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/myapp';
 
 // ─── CORS ──────────────────────────────────────────────────────────
 const allowedOrigins = [
-  'http://localhost:1000',
-  'https://teens-connect.vercel.app',
-  'https://teensconnect.flameztech.online'
+  'https://localhost',
+  'http://localhost',
 ];
 
 app.use(cors({

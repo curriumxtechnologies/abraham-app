@@ -66,6 +66,15 @@ export const hostelApiSlice = apiSlice.injectEndpoints({
       }),
       providesTags: ['Transaction'],
     }),
+
+    // ─── NEW: Get all bunks (admin) ──────────────────────────
+    getAllBunks: builder.query({
+      query: () => ({
+        url: `${HOSTEL_URL}/admin/bunks`,
+        method: 'GET',
+      }),
+      providesTags: ['Bunk'],
+    }),
   }),
 });
 
@@ -77,4 +86,5 @@ export const {
   useGetMyTransactionsQuery,
   useSetupRoomsMutation,
   useGetAllTransactionsQuery,
+  useGetAllBunksQuery,   // ✅ exported
 } = hostelApiSlice;

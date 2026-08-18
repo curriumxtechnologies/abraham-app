@@ -29,7 +29,7 @@ import AdminLayout from '../../../layouts/AdminLayout';
 import { useGetAllStudentsQuery } from '../../../slices/userApiSlice';
 import { useGetAllCheckInsQuery } from '../../../slices/checkInApiSlice';
 import { useGetComplaintsQuery } from '../../../slices/complaintApiSlice';
-import { useGetAllTransactionsQuery, useSetupRoomsMutation } from '../../../slices/hostelApiSlice';
+import { useGetAllTransactionsQuery, useSetupRoomsMutation, useGetAllBunksQuery } from '../../../slices/hostelApiSlice';
 import { useGetUserInfoQuery } from '../../../slices/userApiSlice';
 
 const AdminDashboard = () => {
@@ -54,23 +54,37 @@ const AdminDashboard = () => {
   const [setupError, setSetupError] = useState('');
   const [setupSuccess, setSetupSuccess] = useState('');
 
-  // ─── Auto-increment room number ──────────────────────────────
+  // ─── Fetch existing bunks when modal opens ──────────────────
+  const { data: allBunksData, isLoading: bunksLoading, refetch: refetchBunks } = useGetAllBunksQuery(undefined, {
+    skip: !showModal,
+  });
+
+  // ─── Existing rooms grouped by room number ──────────────────
+  const existingRooms = useMemo(() => {
+    if (!allBunksData?.data?.rooms) return {};
+    return allBunksData.data.rooms;
+  }, [allBunksData]);
+
+  // ─── Auto‑increment: skip taken numbers ─────────────────────
   const getNextRoomNumber = () => {
-    if (roomsList.length === 0) return 1;
-    const maxRoom = Math.max(...roomsList.map(r => r.roomNumber));
-    return maxRoom + 1;
+    const existing = Object.keys(existingRooms).map(Number);
+    const pending = roomsList.map(r => r.roomNumber);
+    const allTaken = [...existing, ...pending];
+    let next = 1;
+    while (allTaken.includes(next)) next++;
+    return next;
   };
 
-  // Pre-fill room number when modal opens or list changes
+  // Pre‑fill room number when modal opens or list changes
   useEffect(() => {
     if (showModal) {
       setRoomNumber(getNextRoomNumber().toString());
       setSetupError('');
       setSetupSuccess('');
     }
-  }, [showModal, roomsList]);
+  }, [showModal, roomsList, existingRooms]);
 
-  // ─── Derived stats (unchanged) ──────────────────────────────
+  // ─── Derived stats ────────────────────────────────────────────
   const stats = useMemo(() => {
     const students = studentsData?.users || [];
     const checkIns = checkInsData?.data || [];
@@ -119,7 +133,7 @@ const AdminDashboard = () => {
     };
   }, [studentsData, checkInsData, complaintsData]);
 
-  // ─── Recent Activities (unchanged) ───────────────────────────
+  // ─── Recent Activities ──────────────────────────────────────
   const recentActivities = useMemo(() => {
     const activities = [];
     const checkIns = checkInsData?.data || [];
@@ -159,7 +173,7 @@ const AdminDashboard = () => {
     return activities.slice(0, 5);
   }, [checkInsData, complaintsData]);
 
-  // ─── Recent Complaints (unchanged) ──────────────────────────
+  // ─── Recent Complaints ──────────────────────────────────────
   const recentComplaints = useMemo(() => {
     return (complaintsData?.data || []).slice(0, 3).map(comp => ({
       id: comp._id,
@@ -173,12 +187,25 @@ const AdminDashboard = () => {
     }));
   }, [complaintsData]);
 
-  // ─── Hostel Occupancy (placeholder) ─────────────────────────
+  // ─── Hostel Occupancy ──────────────────────────────────────
   const hostelStats = useMemo(() => {
-    return [
-      { name: 'Total Bunks', total: 0, occupied: 0, available: 0, color: 'bg-[#0E2F76]' },
-    ];
-  }, []);
+    if (!allBunksData?.data) return [];
+    const rooms = allBunksData.data.rooms;
+    const stats = [];
+    for (const [roomNumber, bunks] of Object.entries(rooms)) {
+      const total = bunks.length;
+      const occupied = bunks.filter(b => !b.isAvailable).length;
+      const available = total - occupied;
+      stats.push({
+        name: `Room ${roomNumber}`,
+        total,
+        occupied,
+        available,
+        color: occupied === total ? 'bg-red-500' : occupied > 0 ? 'bg-yellow-500' : 'bg-green-500',
+      });
+    }
+    return stats;
+  }, [allBunksData]);
 
   // ─── Modal Handlers ──────────────────────────────────────────
   const handleAddRoom = () => {
@@ -187,8 +214,14 @@ const AdminDashboard = () => {
       setSetupError('Please enter a valid room number');
       return;
     }
+    // Check if room already exists in the database
+    if (existingRooms[roomNum]) {
+      setSetupError(`Room ${roomNum} already exists in the system`);
+      return;
+    }
+    // Check if room is already in the pending list
     if (roomsList.some(r => r.roomNumber === roomNum)) {
-      setSetupError(`Room ${roomNum} is already in the list`);
+      setSetupError(`Room ${roomNum} is already in the pending list`);
       return;
     }
     if (bunkCount < 1) {
@@ -202,13 +235,11 @@ const AdminDashboard = () => {
     const bunks = Array.from({ length: bunkCount }, (_, i) => i + 1);
     setRoomsList(prev => [...prev, { roomNumber: roomNum, bunks, price }]);
     setSetupError('');
-    // Auto-increment for next room
-    setRoomNumber((roomNum + 1).toString());
+    // Auto-increment will be handled by useEffect
   };
 
   const handleRemoveRoom = (index) => {
     setRoomsList(prev => prev.filter((_, i) => i !== index));
-    // Optionally reset error
     setSetupError('');
   };
 
@@ -223,6 +254,7 @@ const AdminDashboard = () => {
       const result = await setupRooms({ rooms: roomsList }).unwrap();
       setSetupSuccess(result.message || 'Rooms created successfully!');
       setRoomsList([]);
+      await refetchBunks(); // Refresh the room list
       setTimeout(() => {
         setShowModal(false);
         setSetupSuccess('');
@@ -337,7 +369,7 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Stats Grid (unchanged) */}
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {statCards.map((stat, index) => {
           const Icon = stat.icon;
@@ -368,8 +400,9 @@ const AdminDashboard = () => {
         })}
       </div>
 
-      {/* Three Column Layout (unchanged) */}
+      {/* Three Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        {/* Attendance Chart (Takes 2 columns) */}
         <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -404,6 +437,7 @@ const AdminDashboard = () => {
           </div>
         </div>
 
+        {/* Hostel Occupancy */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Occupancy</h3>
@@ -427,8 +461,8 @@ const AdminDashboard = () => {
             )) : (
               <div className="text-center py-6 text-gray-500">
                 <Building2 size={32} className="mx-auto mb-2 text-gray-300" />
-                <p className="text-sm">No occupancy data available</p>
-                <p className="text-xs text-gray-400 mt-1">Bunk allocation data will appear here</p>
+                <p className="text-sm">No rooms set up yet</p>
+                <p className="text-xs text-gray-400 mt-1">Click "Manage Hostels" to add rooms</p>
               </div>
             )}
           </div>
@@ -552,8 +586,38 @@ const AdminDashboard = () => {
             </div>
 
             <div className="p-6">
-              {/* Form to add a room */}
+              {/* ─── Existing Rooms ────────────────────────────── */}
+              {!bunksLoading && Object.keys(existingRooms).length > 0 && (
+                <div className="mb-4">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Existing Rooms</h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-3">
+                    {Object.entries(existingRooms).map(([roomNumber, bunks]) => (
+                      <div key={roomNumber} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
+                        <div>
+                          <span className="font-medium text-gray-900">Room {roomNumber}</span>
+                          <span className="text-sm text-gray-500 ml-3">
+                            {bunks.length} bunks • {bunks.filter(b => b.isAvailable).length} available
+                          </span>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full ${bunks.some(b => !b.isAvailable) ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                          {bunks.some(b => !b.isAvailable) ? 'Partially Occupied' : 'All Available'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {bunksLoading && (
+                <div className="mb-4 text-center py-4">
+                  <Loader2 size={24} className="animate-spin text-[#0E2F76] mx-auto" />
+                  <p className="text-sm text-gray-500 mt-2">Loading existing rooms...</p>
+                </div>
+              )}
+
+              {/* ─── Add Room Form ────────────────────────────── */}
               <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Add New Room</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Room Number</label>
@@ -600,10 +664,10 @@ const AdminDashboard = () => {
                 )}
               </div>
 
-              {/* Rooms list */}
+              {/* ─── Pending Rooms List ────────────────────────── */}
               {roomsList.length > 0 && (
                 <div className="mb-4">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Rooms to Create</h4>
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Pending Rooms to Create</h4>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {roomsList.map((room, index) => (
                       <div key={index} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
@@ -622,7 +686,7 @@ const AdminDashboard = () => {
                 </div>
               )}
 
-              {/* Submit */}
+              {/* ─── Submit ────────────────────────────────────── */}
               <div className="flex items-center justify-between border-t border-gray-100 pt-4">
                 <div>
                   {setupSuccess && <p className="text-xs text-green-600">{setupSuccess}</p>}

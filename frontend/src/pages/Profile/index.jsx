@@ -17,6 +17,12 @@ import {
   Activity,
   AlertCircle,
   Loader2,
+  X,
+  CheckCircle2,
+  ArrowUpRight,
+  Mail,
+  Phone,
+  Building2,
 } from 'lucide-react';
 import MainLayout from '../../layouts/MainLayout';
 import FloatingShapes from '../../components/common/FloatingShapes';
@@ -26,9 +32,9 @@ import { useGetUserInfoQuery } from '../../slices/userApiSlice';
 import { useGetMyAllocationQuery } from '../../slices/hostelApiSlice';
 import { useGetMyHistoryQuery } from '../../slices/checkInApiSlice';
 import { useGetComplaintsQuery } from '../../slices/complaintApiSlice';
-import { useLogoutMutation } from '../../slices/userApiSlice';   // 👈 logout mutation
+import { useLogoutMutation } from '../../slices/userApiSlice';
 import { logout } from '../../slices/authSlice';
-import { apiSlice } from '../../slices/apiSlice';                // 👈 to reset cache
+import { apiSlice } from '../../slices/apiSlice';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -36,6 +42,9 @@ const Profile = () => {
 
   // ─── Local state ──────────────────────────────────────────────
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showHostelModal, setShowHostelModal] = useState(false);
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // ─── Queries ──────────────────────────────────────────────────
   const {
@@ -87,7 +96,7 @@ const Profile = () => {
       icon: Home,
       color: 'text-blue-500',
       bgColor: 'bg-blue-50',
-      onClick: () => navigate('/hostel-info'),
+      onClick: () => setShowHostelModal(true),
     },
     {
       id: 'attendance',
@@ -95,7 +104,7 @@ const Profile = () => {
       icon: Clock,
       color: 'text-green-500',
       bgColor: 'bg-green-50',
-      onClick: () => navigate('/attendance-history'),
+      onClick: () => setShowAttendanceModal(true),
     },
     {
       id: 'complaints',
@@ -111,7 +120,7 @@ const Profile = () => {
       icon: HelpCircle,
       color: 'text-orange-500',
       bgColor: 'bg-orange-50',
-      onClick: () => navigate('/help'),
+      onClick: () => setShowHelpModal(true),
     },
     {
       id: 'logout',
@@ -126,23 +135,13 @@ const Profile = () => {
   // ─── Handlers ──────────────────────────────────────────────────
   const handleLogout = async () => {
     try {
-      // 1. Call backend logout (clears HTTP‑only cookie)
       await logoutMutation().unwrap();
-
-      // 2. Dispatch Redux logout (clears auth state and removes userInfo from localStorage)
       dispatch(logout());
-
-      // 3. Wipe all localStorage and sessionStorage (no trace)
       localStorage.clear();
       sessionStorage.clear();
-
-      // 4. Reset all RTK Query caches
       dispatch(apiSlice.util.resetApiState());
-
-      // 5. Navigate to login
       navigate('/login');
     } catch (error) {
-      // Even if the backend call fails, we still clear local data
       console.error('Logout error:', error);
       dispatch(logout());
       localStorage.clear();
@@ -232,7 +231,7 @@ const Profile = () => {
             </div>
           </div>
 
-          {/* Hostel Allocation */}
+          {/* Hostel Allocation (quick view) */}
           <div className="bg-white rounded-[24px] p-5 shadow-sm border border-[#AAC0E1]/20 mb-4">
             <h3 className="text-sm font-semibold text-[#0E2F76] mb-4">Hostel Allocation</h3>
             {allocatedBunk ? (
@@ -335,7 +334,7 @@ const Profile = () => {
         </div>
       </div>
 
-      {/* Logout Confirmation Modal */}
+      {/* ─── Logout Confirmation Modal ────────────────────────── */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowLogoutConfirm(false)} />
@@ -369,6 +368,172 @@ const Profile = () => {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Hostel Information Modal ────────────────────────── */}
+      {showHostelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowHostelModal(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl">
+            <div className="sticky top-0 bg-white z-10 px-6 py-5 border-b border-gray-100 flex items-center justify-between rounded-t-2xl">
+              <h2 className="text-xl font-bold text-[#0E2F76]">Hostel Information</h2>
+              <button onClick={() => setShowHostelModal(false)} className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
+                <X size={20} className="text-gray-600" />
+              </button>
+            </div>
+            <div className="p-6">
+              {allocatedBunk ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
+                    <div className="w-12 h-12 rounded-full bg-[#AAC0E1]/20 flex items-center justify-center">
+                      <Home size={22} className="text-[#0E2F76]" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Room</p>
+                      <p className="text-lg font-bold text-[#0E2F76]">Room {allocatedBunk.roomNumber}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
+                    <div className="w-12 h-12 rounded-full bg-[#AAC0E1]/20 flex items-center justify-center">
+                      <Bed size={22} className="text-[#0E2F76]" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Bunk</p>
+                      <p className="text-lg font-bold text-[#0E2F76]">Bunk {allocatedBunk.bunkNumber}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
+                    <div className="w-12 h-12 rounded-full bg-[#AAC0E1]/20 flex items-center justify-center">
+                      <MapPin size={22} className="text-[#0E2F76]" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Price</p>
+                      <p className="text-lg font-bold text-[#0E2F76]">₦{allocatedBunk.price?.toLocaleString() || '0'}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <p className="text-[#0E2F76]/60">You have not been allocated a bunk yet.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Attendance History Modal ────────────────────────── */}
+      {showAttendanceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAttendanceModal(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl">
+            <div className="sticky top-0 bg-white z-10 px-6 py-5 border-b border-gray-100 flex items-center justify-between rounded-t-2xl">
+              <h2 className="text-xl font-bold text-[#0E2F76]">Attendance History</h2>
+              <button onClick={() => setShowAttendanceModal(false)} className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
+                <X size={20} className="text-gray-600" />
+              </button>
+            </div>
+            <div className="p-6">
+              {checkInHistory.length > 0 ? (
+                <div className="space-y-3">
+                  {checkInHistory.slice(0, 10).map((record, index) => {
+                    const isCheckIn = !!record.returnTime;
+                    return (
+                      <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isCheckIn ? 'bg-green-100' : 'bg-orange-100'}`}>
+                          {isCheckIn ? <CheckCircle2 size={18} className="text-green-600" /> : <LogOut size={18} className="text-orange-600" />}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-[#0E2F76]">
+                            {isCheckIn ? 'Checked In' : 'Checked Out'}
+                          </p>
+                          <p className="text-xs text-[#0E2F76]/50">
+                            {new Date(isCheckIn ? record.returnTime : record.checkoutTime).toLocaleString()}
+                          </p>
+                        </div>
+                        {isCheckIn && (
+                          <span className="text-xs text-green-600 font-medium">Returned</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {checkInHistory.length > 10 && (
+                    <p className="text-xs text-center text-[#0E2F76]/40 mt-2">
+                      Showing last 10 of {checkInHistory.length} records
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <p className="text-[#0E2F76]/60">No attendance records yet.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Help & Support Modal ────────────────────────────── */}
+      {showHelpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowHelpModal(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl">
+            <div className="sticky top-0 bg-white z-10 px-6 py-5 border-b border-gray-100 flex items-center justify-between rounded-t-2xl">
+              <h2 className="text-xl font-bold text-[#0E2F76]">Help & Support</h2>
+              <button onClick={() => setShowHelpModal(false)} className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200">
+                <X size={20} className="text-gray-600" />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="space-y-4">
+                <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                      <Mail size={18} className="text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-[#0E2F76]">Email Support</p>
+                      <p className="text-xs text-[#0E2F76]/60">support@hostix.com</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 bg-green-50 rounded-xl border border-green-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                      <Phone size={18} className="text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-[#0E2F76]">Phone Support</p>
+                      <p className="text-xs text-[#0E2F76]/60">+234 800 000 0000</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 bg-purple-50 rounded-xl border border-purple-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                      <Building2 size={18} className="text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-[#0E2F76]">Hostel Office</p>
+                      <p className="text-xs text-[#0E2F76]/60">Visit the hostel admin office</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 bg-yellow-50 rounded-xl border border-yellow-100">
+                  <div className="flex items-start gap-3">
+                    <MessageSquare size={18} className="text-yellow-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-[#0E2F76]">Report Issues</p>
+                      <p className="text-xs text-[#0E2F76]/60">
+                        Use the "Complaint History" option to report issues in your hostel.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

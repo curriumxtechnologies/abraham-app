@@ -7,6 +7,7 @@ import {
   getMyTransactions,
   setupRooms,
   getAllTransactions,
+  getAllBunks, // 👈 import the new controller
 } from "../controllers/hostelAllocationController.js";
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -25,5 +26,6 @@ router.get("/my-transactions", getMyTransactions);
 // ─── Admin-only endpoints (role check inside controller) ──────
 router.post("/admin/setup", setupRooms);
 router.get("/admin/transactions", getAllTransactions);
+router.get("/admin/bunks", getAllBunks); // 👈 new route
 
 export default router;

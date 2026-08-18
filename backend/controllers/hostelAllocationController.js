@@ -385,11 +385,50 @@ const getAllTransactions = asyncHandler(async (req, res) => {
     .populate("bunk", "roomNumber bunkNumber")
     .sort({ createdAt: -1 });
 
+
   res.status(200).json({
     success: true,
     data: transactions,
   });
 });
+
+// @desc    Get all bunks (admin only)
+// @route   GET /api/hostel/admin/bunks
+// @access  Private/Admin
+const getAllBunks = asyncHandler(async (req, res) => {
+  if (req.user.role !== "admin" && req.user.role !== "super_admin") {
+    res.status(403);
+    throw new Error("Not authorized as admin");
+  }
+
+  const bunks = await Bunk.find()
+    .populate("allocatedTo", "fullName studentId")
+    .sort({ roomNumber: 1, bunkNumber: 1 });
+
+  const rooms = {};
+  bunks.forEach((bunk) => {
+    const room = bunk.roomNumber;
+    if (!rooms[room]) rooms[room] = [];
+    rooms[room].push({
+      bunkNumber: bunk.bunkNumber,
+      price: bunk.price,
+      isAvailable: bunk.isAvailable,
+      allocatedTo: bunk.allocatedTo,
+      _id: bunk._id,
+    });
+  });
+
+  res.status(200).json({
+    success: true,
+    data: {
+      rooms,
+      totalBunks: bunks.length,
+      occupiedBunks: bunks.filter((b) => !b.isAvailable).length,
+    },
+  });
+});
+
+
 
 export {
   getAvailableBunks,
@@ -400,4 +439,5 @@ export {
   getMyAllocation,
   getMyTransactions,
   getAllTransactions,
+  getAllBunks,
 };
