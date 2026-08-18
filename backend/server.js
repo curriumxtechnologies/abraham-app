@@ -4,13 +4,12 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import dns from 'dns'; // 👈 added for DNS resolution fix
+import dns from 'dns';
 
 import userRoutes from './routes/userRoutes.js';
 import allocationRoutes from './routes/allocationRoutes.js';
 import checkInRoutes from './routes/checkInRoutes.js';
 import complaintRoutes from './routes/complaintRoutes.js';
-import { handlePaystackWebhook } from './controllers/hostelAllocationController.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
 const app = express();
@@ -40,9 +39,6 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
 }));
-
-// ─── Webhook (must be BEFORE bodyParser.json) ──────────────────
-app.post('/api/hostel/webhook', express.raw({ type: 'application/json' }), handlePaystackWebhook);
 
 // ─── JSON & URL‑encoded parsers ─────────────────────────────────
 app.use(bodyParser.json());

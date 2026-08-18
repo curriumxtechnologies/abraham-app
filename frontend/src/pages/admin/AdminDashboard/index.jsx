@@ -22,6 +22,9 @@ import {
   Plus,
   X,
   Trash2,
+  Home,
+  Layers,
+  DoorOpen,
 } from 'lucide-react';
 import AdminLayout from '../../../layouts/AdminLayout';
 
@@ -29,7 +32,14 @@ import AdminLayout from '../../../layouts/AdminLayout';
 import { useGetAllStudentsQuery } from '../../../slices/userApiSlice';
 import { useGetAllCheckInsQuery } from '../../../slices/checkInApiSlice';
 import { useGetComplaintsQuery } from '../../../slices/complaintApiSlice';
-import { useGetAllTransactionsQuery, useSetupRoomsMutation, useGetAllBunksQuery } from '../../../slices/hostelApiSlice';
+import {
+  useGetHostelsQuery,
+  useGetAllBunksQuery,
+  useCreateHostelMutation,
+  useCreateBuildingMutation,
+  useCreateRoomMutation,
+  useDeleteHostelMutation,
+} from '../../../slices/hostelApiSlice';
 import { useGetUserInfoQuery } from '../../../slices/userApiSlice';
 
 const AdminDashboard = () => {
@@ -39,50 +49,144 @@ const AdminDashboard = () => {
   const { data: studentsData, isLoading: studentsLoading, error: studentsError } = useGetAllStudentsQuery();
   const { data: checkInsData, isLoading: checkInsLoading, error: checkInsError } = useGetAllCheckInsQuery();
   const { data: complaintsData, isLoading: complaintsLoading, error: complaintsError } = useGetComplaintsQuery();
-  const { data: transactionsData, isLoading: transactionsLoading } = useGetAllTransactionsQuery();
   const { data: userData, isLoading: userLoading } = useGetUserInfoQuery();
 
-  // ─── Setup Rooms Mutation ─────────────────────────────────────
-  const [setupRooms, { isLoading: setupLoading }] = useSetupRoomsMutation();
+  // ─── Hostel Management Queries ──────────────────────────────
+  const { data: hostelsData, isLoading: hostelsLoading, refetch: refetchHostels } = useGetHostelsQuery();
+  const { data: allBunksData, isLoading: bunksLoading, refetch: refetchBunks } = useGetAllBunksQuery();
+
+  // ─── Mutations ─────────────────────────────────────────────────
+  const [createHostel, { isLoading: creatingHostel }] = useCreateHostelMutation();
+  const [createBuilding, { isLoading: creatingBuilding }] = useCreateBuildingMutation();
+  const [createRoom, { isLoading: creatingRoom }] = useCreateRoomMutation();
+  const [deleteHostel, { isLoading: deletingHostel }] = useDeleteHostelMutation();
 
   // ─── Modal State ──────────────────────────────────────────────
   const [showModal, setShowModal] = useState(false);
-  const [roomNumber, setRoomNumber] = useState('');
-  const [bunkCount, setBunkCount] = useState(4);
-  const [price, setPrice] = useState(5000);
-  const [roomsList, setRoomsList] = useState([]);
-  const [setupError, setSetupError] = useState('');
-  const [setupSuccess, setSetupSuccess] = useState('');
 
-  // ─── Fetch existing bunks when modal opens ──────────────────
-  const { data: allBunksData, isLoading: bunksLoading, refetch: refetchBunks } = useGetAllBunksQuery(undefined, {
-    skip: !showModal,
-  });
+  // New Hostel
+  const [newHostelName, setNewHostelName] = useState('');
+  const [newHostelType, setNewHostelType] = useState('male');
+  const [newHostelDesc, setNewHostelDesc] = useState('');
 
-  // ─── Existing rooms grouped by room number ──────────────────
-  const existingRooms = useMemo(() => {
-    if (!allBunksData?.data?.rooms) return {};
-    return allBunksData.data.rooms;
-  }, [allBunksData]);
+  // New Building
+  const [selectedHostelId, setSelectedHostelId] = useState('');
+  const [newBuildingName, setNewBuildingName] = useState('');
+  const [newBuildingDesc, setNewBuildingDesc] = useState('');
 
-  // ─── Auto‑increment: skip taken numbers ─────────────────────
-  const getNextRoomNumber = () => {
-    const existing = Object.keys(existingRooms).map(Number);
-    const pending = roomsList.map(r => r.roomNumber);
-    const allTaken = [...existing, ...pending];
-    let next = 1;
-    while (allTaken.includes(next)) next++;
-    return next;
+  // New Room
+  const [selectedBuildingId, setSelectedBuildingId] = useState('');
+  const [newRoomNumber, setNewRoomNumber] = useState('');
+  const [newBunkCount, setNewBunkCount] = useState(4);
+  const [newRoomPrice, setNewRoomPrice] = useState(5000);
+
+  // UI state
+  const [activeTab, setActiveTab] = useState('hostels'); // 'hostels', 'buildings', 'rooms'
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  // ─── Reset modal state on close ──────────────────────────────
+  useEffect(() => {
+    if (!showModal) {
+      setNewHostelName('');
+      setNewHostelType('male');
+      setNewHostelDesc('');
+      setSelectedHostelId('');
+      setNewBuildingName('');
+      setNewBuildingDesc('');
+      setSelectedBuildingId('');
+      setNewRoomNumber('');
+      setNewBunkCount(4);
+      setNewRoomPrice(5000);
+      setActiveTab('hostels');
+      setErrorMsg('');
+      setSuccessMsg('');
+    }
+  }, [showModal]);
+
+  // ─── Handlers ──────────────────────────────────────────────────
+  const handleCreateHostel = async () => {
+    if (!newHostelName.trim()) {
+      setErrorMsg('Hostel name is required');
+      return;
+    }
+    try {
+      await createHostel({ name: newHostelName, type: newHostelType, description: newHostelDesc }).unwrap();
+      setSuccessMsg('Hostel created successfully!');
+      setNewHostelName('');
+      setNewHostelDesc('');
+      await refetchHostels();
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (error) {
+      setErrorMsg(error?.data?.message || 'Failed to create hostel');
+    }
   };
 
-  // Pre‑fill room number when modal opens or list changes
-  useEffect(() => {
-    if (showModal) {
-      setRoomNumber(getNextRoomNumber().toString());
-      setSetupError('');
-      setSetupSuccess('');
+  const handleCreateBuilding = async () => {
+    if (!selectedHostelId) {
+      setErrorMsg('Please select a hostel');
+      return;
     }
-  }, [showModal, roomsList, existingRooms]);
+    if (!newBuildingName.trim()) {
+      setErrorMsg('Building name is required');
+      return;
+    }
+    try {
+      await createBuilding({ hostelId: selectedHostelId, name: newBuildingName, description: newBuildingDesc }).unwrap();
+      setSuccessMsg('Building created successfully!');
+      setNewBuildingName('');
+      setNewBuildingDesc('');
+      await refetchHostels();
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (error) {
+      setErrorMsg(error?.data?.message || 'Failed to create building');
+    }
+  };
+
+  const handleCreateRoom = async () => {
+    if (!selectedBuildingId) {
+      setErrorMsg('Please select a building');
+      return;
+    }
+    if (!newRoomNumber.trim()) {
+      setErrorMsg('Room number is required');
+      return;
+    }
+    if (newBunkCount < 1) {
+      setErrorMsg('Bunk count must be at least 1');
+      return;
+    }
+    try {
+      await createRoom({
+        buildingId: selectedBuildingId,
+        roomNumber: newRoomNumber,
+        bunkCount: newBunkCount,
+        price: newRoomPrice,
+      }).unwrap();
+      setSuccessMsg(`Room ${newRoomNumber} created with ${newBunkCount} bunks!`);
+      setNewRoomNumber('');
+      setNewBunkCount(4);
+      setNewRoomPrice(5000);
+      await refetchHostels();
+      await refetchBunks();
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (error) {
+      setErrorMsg(error?.data?.message || 'Failed to create room');
+    }
+  };
+
+  const handleDeleteHostel = async (hostelId) => {
+    if (!window.confirm('Are you sure you want to delete this hostel and all its buildings/rooms/bunks?')) return;
+    try {
+      await deleteHostel(hostelId).unwrap();
+      setSuccessMsg('Hostel deleted successfully!');
+      await refetchHostels();
+      await refetchBunks();
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (error) {
+      setErrorMsg(error?.data?.message || 'Failed to delete hostel');
+    }
+  };
 
   // ─── Derived stats ────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -107,9 +211,7 @@ const AdminDashboard = () => {
     const totalComplaints = complaints.length;
     const pendingComplaints = complaints.filter(c => c.status === 'pending').length;
     const today = new Date().toDateString();
-    const resolvedToday = complaints.filter(c => 
-      c.status === 'done' && new Date(c.updatedAt).toDateString() === today
-    ).length;
+    const resolvedToday = complaints.filter(c => c.status === 'done' && new Date(c.updatedAt).toDateString() === today).length;
 
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const todayDate = new Date();
@@ -182,90 +284,32 @@ const AdminDashboard = () => {
       issue: comp.title,
       type: comp.category || 'General',
       status: comp.status === 'pending' ? 'Submitted' :
-              comp.status === 'read' ? 'Acknowledged' : 'Resolved',
+        comp.status === 'read' ? 'Acknowledged' : 'Resolved',
       date: new Date(comp.createdAt).toLocaleDateString(),
     }));
   }, [complaintsData]);
 
-  // ─── Hostel Occupancy ──────────────────────────────────────
-  const hostelStats = useMemo(() => {
+  // ─── Occupancy from all bunks ──────────────────────────────
+  const occupancyStats = useMemo(() => {
     if (!allBunksData?.data) return [];
-    const rooms = allBunksData.data.rooms;
-    const stats = [];
-    for (const [roomNumber, bunks] of Object.entries(rooms)) {
-      const total = bunks.length;
-      const occupied = bunks.filter(b => !b.isAvailable).length;
-      const available = total - occupied;
-      stats.push({
-        name: `Room ${roomNumber}`,
-        total,
-        occupied,
-        available,
-        color: occupied === total ? 'bg-red-500' : occupied > 0 ? 'bg-yellow-500' : 'bg-green-500',
-      });
-    }
-    return stats;
+    // Group by hostel -> building -> room
+    const map = {};
+    allBunksData.data.forEach(bunk => {
+      const hostel = bunk.roomId?.buildingId?.hostelId?.name || 'Unknown Hostel';
+      const building = bunk.roomId?.buildingId?.name || 'Unknown Building';
+      const room = bunk.roomId?.roomNumber || 'Unknown Room';
+      const key = `${hostel}|${building}|${room}`;
+      if (!map[key]) {
+        map[key] = { hostel, building, room, total: 0, occupied: 0 };
+      }
+      map[key].total++;
+      if (!bunk.isAvailable) map[key].occupied++;
+    });
+    return Object.values(map);
   }, [allBunksData]);
 
-  // ─── Modal Handlers ──────────────────────────────────────────
-  const handleAddRoom = () => {
-    const roomNum = parseInt(roomNumber);
-    if (!roomNum || roomNum <= 0) {
-      setSetupError('Please enter a valid room number');
-      return;
-    }
-    // Check if room already exists in the database
-    if (existingRooms[roomNum]) {
-      setSetupError(`Room ${roomNum} already exists in the system`);
-      return;
-    }
-    // Check if room is already in the pending list
-    if (roomsList.some(r => r.roomNumber === roomNum)) {
-      setSetupError(`Room ${roomNum} is already in the pending list`);
-      return;
-    }
-    if (bunkCount < 1) {
-      setSetupError('Bunk count must be at least 1');
-      return;
-    }
-    if (price < 1) {
-      setSetupError('Price must be a positive number');
-      return;
-    }
-    const bunks = Array.from({ length: bunkCount }, (_, i) => i + 1);
-    setRoomsList(prev => [...prev, { roomNumber: roomNum, bunks, price }]);
-    setSetupError('');
-    // Auto-increment will be handled by useEffect
-  };
-
-  const handleRemoveRoom = (index) => {
-    setRoomsList(prev => prev.filter((_, i) => i !== index));
-    setSetupError('');
-  };
-
-  const handleSubmitRooms = async () => {
-    if (roomsList.length === 0) {
-      setSetupError('Please add at least one room');
-      return;
-    }
-    setSetupError('');
-    setSetupSuccess('');
-    try {
-      const result = await setupRooms({ rooms: roomsList }).unwrap();
-      setSetupSuccess(result.message || 'Rooms created successfully!');
-      setRoomsList([]);
-      await refetchBunks(); // Refresh the room list
-      setTimeout(() => {
-        setShowModal(false);
-        setSetupSuccess('');
-      }, 2000);
-    } catch (error) {
-      setSetupError(error?.data?.message || 'Failed to create rooms');
-    }
-  };
-
   // ─── Loading / Error states ──────────────────────────────────
-  const isLoading = studentsLoading || checkInsLoading || complaintsLoading || transactionsLoading || userLoading;
+  const isLoading = studentsLoading || checkInsLoading || complaintsLoading || userLoading;
   const hasError = studentsError || checkInsError || complaintsError;
 
   if (isLoading) {
@@ -307,7 +351,6 @@ const AdminDashboard = () => {
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
       change: `${stats.checkedIn} inside`,
-      changeType: 'neutral',
     },
     {
       title: 'Checked In Now',
@@ -316,7 +359,6 @@ const AdminDashboard = () => {
       color: 'text-green-600',
       bgColor: 'bg-green-50',
       change: `${Math.round((stats.checkedIn / (stats.totalStudents || 1)) * 100)}%`,
-      changeType: 'neutral',
     },
     {
       title: 'Checked Out',
@@ -325,7 +367,6 @@ const AdminDashboard = () => {
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
       change: 'Outside',
-      changeType: 'decrease',
     },
     {
       title: 'Pending Complaints',
@@ -334,7 +375,6 @@ const AdminDashboard = () => {
       color: 'text-red-600',
       bgColor: 'bg-red-50',
       change: `${stats.resolvedToday} resolved today`,
-      changeType: 'neutral',
     },
   ];
 
@@ -391,9 +431,7 @@ const AdminDashboard = () => {
                   <p className="text-sm text-gray-500 font-medium">{stat.title}</p>
                   <p className="text-3xl font-bold text-gray-900 mt-1">{stat.value}</p>
                 </div>
-                <span className="text-sm font-medium text-gray-500">
-                  {stat.change}
-                </span>
+                <span className="text-sm font-medium text-gray-500">{stat.change}</span>
               </div>
             </div>
           );
@@ -402,7 +440,7 @@ const AdminDashboard = () => {
 
       {/* Three Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Attendance Chart (Takes 2 columns) */}
+        {/* Attendance Chart */}
         <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -437,26 +475,32 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Hostel Occupancy */}
+        {/* Occupancy Summary */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-semibold text-gray-900">Occupancy</h3>
             <button className="text-sm text-[#0E2F76] font-medium hover:underline">View All</button>
           </div>
-          <div className="space-y-6">
-            {hostelStats.length > 0 ? hostelStats.map((hostel, index) => (
+          <div className="space-y-4">
+            {occupancyStats.length > 0 ? occupancyStats.slice(0, 5).map((item, index) => (
               <div key={index}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">{hostel.name}</span>
-                  <span className="text-sm text-gray-500">{hostel.occupied}/{hostel.total}</span>
+                <div className="flex items-center justify-between text-sm mb-1">
+                  <span className="font-medium text-gray-700">{item.hostel} - {item.building}</span>
+                  <span className="text-gray-500">{item.occupied}/{item.total}</span>
                 </div>
-                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <span>Room {item.room}</span>
+                  <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                  <span className={item.occupied === item.total ? 'text-red-500' : 'text-green-500'}>
+                    {item.occupied === item.total ? 'Full' : `${item.total - item.occupied} available`}
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mt-1">
                   <div
-                    className={`h-full ${hostel.color} rounded-full transition-all duration-500`}
-                    style={{ width: `${(hostel.occupied / (hostel.total || 1)) * 100}%` }}
+                    className={`h-full rounded-full ${item.occupied === item.total ? 'bg-red-500' : 'bg-[#0E2F76]'}`}
+                    style={{ width: `${(item.occupied / item.total) * 100}%` }}
                   />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">{hostel.available} beds available</p>
               </div>
             )) : (
               <div className="text-center py-6 text-gray-500">
@@ -469,7 +513,7 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Recent Activities & Complaints (unchanged) */}
+      {/* Recent Activities & Complaints */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-6">
@@ -478,32 +522,22 @@ const AdminDashboard = () => {
               <p className="text-sm text-gray-500">Latest student actions</p>
             </div>
             <button className="text-sm text-[#0E2F76] font-medium hover:underline flex items-center gap-1">
-              View All
-              <ArrowUpRight size={14} />
+              View All <ArrowUpRight size={14} />
             </button>
           </div>
           <div className="space-y-4">
             {recentActivities.length > 0 ? recentActivities.map((activity) => (
-              <div
-                key={activity.id}
-                className="flex items-start gap-4 p-3 rounded-xl hover:bg-gray-50 transition-all duration-200"
-              >
+              <div key={activity.id} className="flex items-start gap-4 p-3 rounded-xl hover:bg-gray-50 transition-all duration-200">
                 <div className={`w-10 h-10 rounded-full ${activity.bgColor} flex items-center justify-center flex-shrink-0`}>
                   <activity.icon size={18} className={activity.color} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {activity.student}
-                      </p>
-                      <p className="text-sm text-gray-500 mt-0.5">
-                        {activity.action} • {activity.hostel}
-                      </p>
+                      <p className="text-sm font-medium text-gray-900">{activity.student}</p>
+                      <p className="text-sm text-gray-500 mt-0.5">{activity.action} • {activity.hostel}</p>
                     </div>
-                    <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                      {activity.time}
-                    </span>
+                    <span className="text-xs text-gray-400 flex-shrink-0 ml-2">{activity.time}</span>
                   </div>
                 </div>
               </div>
@@ -522,29 +556,17 @@ const AdminDashboard = () => {
               <h3 className="text-lg font-semibold text-gray-900">Recent Complaints</h3>
               <p className="text-sm text-gray-500">Issues requiring attention</p>
             </div>
-            <button
-              onClick={() => navigate('/admin/complaints')}
-              className="text-sm text-[#0E2F76] font-medium hover:underline flex items-center gap-1"
-            >
-              View All
-              <ArrowUpRight size={14} />
+            <button onClick={() => navigate('/admin/complaints')} className="text-sm text-[#0E2F76] font-medium hover:underline flex items-center gap-1">
+              View All <ArrowUpRight size={14} />
             </button>
           </div>
           <div className="space-y-3">
             {recentComplaints.length > 0 ? recentComplaints.map((complaint) => (
-              <div
-                key={complaint.id}
-                onClick={() => navigate(`/admin/complaints/${complaint.id}`)}
-                className="p-4 rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all duration-200 cursor-pointer"
-              >
+              <div key={complaint.id} onClick={() => navigate(`/admin/complaints/${complaint.id}`)} className="p-4 rounded-xl border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all duration-200 cursor-pointer">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900">
-                      {complaint.student}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {complaint.hostel}
-                    </p>
+                    <p className="text-sm font-medium text-gray-900">{complaint.student}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{complaint.hostel}</p>
                   </div>
                   <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
                     complaint.status === 'Submitted' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
@@ -554,9 +576,7 @@ const AdminDashboard = () => {
                     {complaint.status}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 mb-2 line-clamp-1">
-                  {complaint.issue}
-                </p>
+                <p className="text-sm text-gray-600 mb-2 line-clamp-1">{complaint.issue}</p>
                 <div className="flex items-center gap-2 text-xs text-gray-400">
                   <span>{complaint.type}</span>
                   <span>•</span>
@@ -577,7 +597,7 @@ const AdminDashboard = () => {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowModal(false)} />
-          <div className="relative bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="relative bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="sticky top-0 bg-white z-10 px-6 py-5 border-b border-gray-100 flex items-center justify-between rounded-t-2xl">
               <h2 className="text-xl font-bold text-gray-900">Manage Hostels</h2>
               <button onClick={() => setShowModal(false)} className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-gray-200">
@@ -586,127 +606,291 @@ const AdminDashboard = () => {
             </div>
 
             <div className="p-6">
-              {/* ─── Existing Rooms ────────────────────────────── */}
-              {!bunksLoading && Object.keys(existingRooms).length > 0 && (
-                <div className="mb-4">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Existing Rooms</h4>
-                  <div className="space-y-2 max-h-48 overflow-y-auto bg-gray-50 rounded-lg p-3">
-                    {Object.entries(existingRooms).map(([roomNumber, bunks]) => (
-                      <div key={roomNumber} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
-                        <div>
-                          <span className="font-medium text-gray-900">Room {roomNumber}</span>
-                          <span className="text-sm text-gray-500 ml-3">
-                            {bunks.length} bunks • {bunks.filter(b => b.isAvailable).length} available
-                          </span>
-                        </div>
-                        <span className={`text-xs px-2 py-1 rounded-full ${bunks.some(b => !b.isAvailable) ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
-                          {bunks.some(b => !b.isAvailable) ? 'Partially Occupied' : 'All Available'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {bunksLoading && (
-                <div className="mb-4 text-center py-4">
-                  <Loader2 size={24} className="animate-spin text-[#0E2F76] mx-auto" />
-                  <p className="text-sm text-gray-500 mt-2">Loading existing rooms...</p>
-                </div>
-              )}
-
-              {/* ─── Add Room Form ────────────────────────────── */}
-              <div className="bg-gray-50 rounded-xl p-4 mb-4">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Add New Room</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Room Number</label>
-                    <input
-                      type="number"
-                      value={roomNumber}
-                      onChange={(e) => setRoomNumber(e.target.value)}
-                      placeholder="Auto-filled"
-                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">Next available: {getNextRoomNumber()}</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Number of Bunks</label>
-                    <input
-                      type="number"
-                      value={bunkCount}
-                      onChange={(e) => setBunkCount(Math.max(1, parseInt(e.target.value) || 1))}
-                      min="1"
-                      max="10"
-                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Price (₦)</label>
-                    <input
-                      type="number"
-                      value={price}
-                      onChange={(e) => setPrice(parseInt(e.target.value) || 0)}
-                      placeholder="e.g., 5000"
-                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
-                    />
-                  </div>
-                </div>
+              {/* Tab Navigation */}
+              <div className="flex border-b border-gray-200 mb-6">
                 <button
-                  onClick={handleAddRoom}
-                  className="mt-3 flex items-center gap-2 px-4 py-2 bg-[#0E2F76] text-white rounded-lg text-sm font-medium hover:bg-[#0a2560] transition"
+                  onClick={() => setActiveTab('hostels')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors relative ${activeTab === 'hostels' ? 'text-[#0E2F76] border-b-2 border-[#0E2F76]' : 'text-gray-500 hover:text-gray-700'}`}
                 >
-                  <Plus size={16} />
-                  Add Room to List
+                  <Home size={16} className="inline mr-2" />
+                  Hostels
                 </button>
-                {setupError && (
-                  <p className="mt-2 text-xs text-red-500">{setupError}</p>
-                )}
+                <button
+                  onClick={() => setActiveTab('buildings')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors relative ${activeTab === 'buildings' ? 'text-[#0E2F76] border-b-2 border-[#0E2F76]' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  <Layers size={16} className="inline mr-2" />
+                  Buildings
+                </button>
+                <button
+                  onClick={() => setActiveTab('rooms')}
+                  className={`px-4 py-2 text-sm font-medium transition-colors relative ${activeTab === 'rooms' ? 'text-[#0E2F76] border-b-2 border-[#0E2F76]' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  <DoorOpen size={16} className="inline mr-2" />
+                  Rooms
+                </button>
               </div>
 
-              {/* ─── Pending Rooms List ────────────────────────── */}
-              {roomsList.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Pending Rooms to Create</h4>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {roomsList.map((room, index) => (
-                      <div key={index} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
-                        <div>
-                          <span className="font-medium text-gray-900">Room {room.roomNumber}</span>
-                          <span className="text-sm text-gray-500 ml-3">
-                            {room.bunks.length} bunks • ₦{room.price.toLocaleString()}
-                          </span>
-                        </div>
-                        <button onClick={() => handleRemoveRoom(index)} className="text-red-500 hover:text-red-700">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Error / Success messages */}
+              {errorMsg && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{errorMsg}</div>}
+              {successMsg && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">{successMsg}</div>}
 
-              {/* ─── Submit ────────────────────────────────────── */}
-              <div className="flex items-center justify-between border-t border-gray-100 pt-4">
+              {/* ─── Hostels Tab ────────────────────────────────── */}
+              {activeTab === 'hostels' && (
                 <div>
-                  {setupSuccess && <p className="text-xs text-green-600">{setupSuccess}</p>}
-                  {setupError && <p className="text-xs text-red-500">{setupError}</p>}
+                  <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Create New Hostel</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Hostel Name</label>
+                        <input
+                          type="text"
+                          value={newHostelName}
+                          onChange={(e) => setNewHostelName(e.target.value)}
+                          placeholder="e.g., Boys Hostel A"
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+                        <select
+                          value={newHostelType}
+                          onChange={(e) => setNewHostelType(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
+                        >
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Description (optional)</label>
+                        <input
+                          type="text"
+                          value={newHostelDesc}
+                          onChange={(e) => setNewHostelDesc(e.target.value)}
+                          placeholder="Brief description"
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleCreateHostel}
+                      disabled={creatingHostel}
+                      className="mt-3 flex items-center gap-2 px-4 py-2 bg-[#0E2F76] text-white rounded-lg text-sm font-medium hover:bg-[#0a2560] transition disabled:opacity-50"
+                    >
+                      {creatingHostel ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                      {creatingHostel ? 'Creating...' : 'Add Hostel'}
+                    </button>
+                  </div>
+
+                  {/* List existing hostels */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Existing Hostels</h4>
+                    {hostelsLoading ? (
+                      <div className="text-center py-4"><Loader2 size={24} className="animate-spin text-[#0E2F76] mx-auto" /></div>
+                    ) : hostelsData?.data?.length > 0 ? (
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {hostelsData.data.map(hostel => (
+                          <div key={hostel._id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
+                            <div>
+                              <span className="font-medium text-gray-900">{hostel.name}</span>
+                              <span className={`ml-2 text-xs px-2 py-1 rounded-full ${hostel.type === 'male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'}`}>
+                                {hostel.type}
+                              </span>
+                              <span className="text-sm text-gray-500 ml-2">{hostel.buildings?.length || 0} buildings</span>
+                            </div>
+                            <button
+                              onClick={() => handleDeleteHostel(hostel._id)}
+                              disabled={deletingHostel}
+                              className="text-red-500 hover:text-red-700 disabled:opacity-50"
+                            >
+                              {deletingHostel ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 text-center py-4">No hostels created yet.</p>
+                    )}
+                  </div>
                 </div>
-                <button
-                  onClick={handleSubmitRooms}
-                  disabled={roomsList.length === 0 || setupLoading}
-                  className="px-6 py-2.5 bg-[#0E2F76] text-white rounded-lg text-sm font-medium hover:bg-[#0a2560] transition disabled:opacity-50 flex items-center gap-2"
-                >
-                  {setupLoading ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    'Create Rooms'
+              )}
+
+              {/* ─── Buildings Tab ──────────────────────────────── */}
+              {activeTab === 'buildings' && (
+                <div>
+                  <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Create New Building</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Select Hostel</label>
+                        <select
+                          value={selectedHostelId}
+                          onChange={(e) => setSelectedHostelId(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
+                        >
+                          <option value="">Select a hostel</option>
+                          {hostelsData?.data?.map(hostel => (
+                            <option key={hostel._id} value={hostel._id}>{hostel.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Building Name</label>
+                        <input
+                          type="text"
+                          value={newBuildingName}
+                          onChange={(e) => setNewBuildingName(e.target.value)}
+                          placeholder="e.g., Block A"
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Description (optional)</label>
+                        <input
+                          type="text"
+                          value={newBuildingDesc}
+                          onChange={(e) => setNewBuildingDesc(e.target.value)}
+                          placeholder="Brief description"
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleCreateBuilding}
+                      disabled={creatingBuilding || !selectedHostelId}
+                      className="mt-3 flex items-center gap-2 px-4 py-2 bg-[#0E2F76] text-white rounded-lg text-sm font-medium hover:bg-[#0a2560] transition disabled:opacity-50"
+                    >
+                      {creatingBuilding ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                      {creatingBuilding ? 'Creating...' : 'Add Building'}
+                    </button>
+                  </div>
+
+                  {/* List buildings of selected hostel */}
+                  {selectedHostelId && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                        Buildings in {hostelsData?.data?.find(h => h._id === selectedHostelId)?.name || 'Selected Hostel'}
+                      </h4>
+                      {hostelsLoading ? (
+                        <div className="text-center py-4"><Loader2 size={24} className="animate-spin text-[#0E2F76] mx-auto" /></div>
+                      ) : (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {hostelsData?.data?.find(h => h._id === selectedHostelId)?.buildings?.length > 0 ? (
+                            hostelsData.data.find(h => h._id === selectedHostelId).buildings.map(building => (
+                              <div key={building._id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
+                                <div>
+                                  <span className="font-medium text-gray-900">{building.name}</span>
+                                  <span className="text-sm text-gray-500 ml-2">{building.rooms?.length || 0} rooms</span>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-gray-500 text-center py-4">No buildings in this hostel yet.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
-                </button>
-              </div>
+                </div>
+              )}
+
+              {/* ─── Rooms Tab ──────────────────────────────────── */}
+              {activeTab === 'rooms' && (
+                <div>
+                  <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Create New Room</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Select Building</label>
+                        <select
+                          value={selectedBuildingId}
+                          onChange={(e) => setSelectedBuildingId(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
+                        >
+                          <option value="">Select a building</option>
+                          {hostelsData?.data?.flatMap(hostel =>
+                            hostel.buildings?.map(building => (
+                              <option key={building._id} value={building._id}>
+                                {hostel.name} - {building.name}
+                              </option>
+                            )) || []
+                          )}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Room Number</label>
+                        <input
+                          type="text"
+                          value={newRoomNumber}
+                          onChange={(e) => setNewRoomNumber(e.target.value)}
+                          placeholder="e.g., 101"
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Number of Bunks</label>
+                        <input
+                          type="number"
+                          value={newBunkCount}
+                          onChange={(e) => setNewBunkCount(Math.max(1, parseInt(e.target.value) || 1))}
+                          min="1"
+                          max="10"
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Price (₦)</label>
+                        <input
+                          type="number"
+                          value={newRoomPrice}
+                          onChange={(e) => setNewRoomPrice(parseInt(e.target.value) || 0)}
+                          placeholder="e.g., 5000"
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleCreateRoom}
+                      disabled={creatingRoom || !selectedBuildingId || !newRoomNumber}
+                      className="mt-3 flex items-center gap-2 px-4 py-2 bg-[#0E2F76] text-white rounded-lg text-sm font-medium hover:bg-[#0a2560] transition disabled:opacity-50"
+                    >
+                      {creatingRoom ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                      {creatingRoom ? 'Creating...' : 'Add Room'}
+                    </button>
+                  </div>
+
+                  {/* List rooms in selected building */}
+                  {selectedBuildingId && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                        Rooms in {hostelsData?.data?.flatMap(h => h.buildings || []).find(b => b._id === selectedBuildingId)?.name || 'Selected Building'}
+                      </h4>
+                      {hostelsLoading ? (
+                        <div className="text-center py-4"><Loader2 size={24} className="animate-spin text-[#0E2F76] mx-auto" /></div>
+                      ) : (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {hostelsData?.data?.flatMap(h => h.buildings || []).find(b => b._id === selectedBuildingId)?.rooms?.length > 0 ? (
+                            hostelsData.data.flatMap(h => h.buildings || []).find(b => b._id === selectedBuildingId).rooms.map(room => (
+                              <div key={room._id} className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
+                                <div>
+                                  <span className="font-medium text-gray-900">Room {room.roomNumber}</span>
+                                  <span className="text-sm text-gray-500 ml-2">{room.bunkCount} bunks</span>
+                                  <span className={`text-xs ml-2 px-2 py-1 rounded-full ${room.isFull ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                    {room.isFull ? 'Full' : 'Available'}
+                                  </span>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-gray-500 text-center py-4">No rooms in this building yet.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

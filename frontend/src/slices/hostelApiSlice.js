@@ -4,33 +4,28 @@ const HOSTEL_URL = '/hostel';
 
 export const hostelApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
-    // Get available bunks
-    getAvailableBunks: builder.query({
+    // ─── User endpoints ──────────────────────────────────────────
+
+    // Get all hostels (with buildings, rooms, bunks)
+    getHostels: builder.query({
       query: () => ({
-        url: `${HOSTEL_URL}/available`,
+        url: `${HOSTEL_URL}`,
         method: 'GET',
       }),
-      providesTags: ['Bunk'],
+      providesTags: ['Hostel', 'Building', 'Room', 'Bunk'],
     }),
 
-    // Initiate payment for a bunk
-    initiatePayment: builder.mutation({
+    // Allocate a bunk to the current user
+    allocateBunk: builder.mutation({
       query: (data) => ({
-        url: `${HOSTEL_URL}/initiate-payment`,
+        url: `${HOSTEL_URL}/allocate`,
         method: 'POST',
         body: data,
       }),
+      invalidatesTags: ['Bunk', 'User'],
     }),
 
-    // Verify payment status
-    verifyPayment: builder.query({
-      query: (reference) => ({
-        url: `${HOSTEL_URL}/verify-payment/${reference}`,
-        method: 'GET',
-      }),
-    }),
-
-    // Get user's allocation
+    // Get current user's allocation (full nested details)
     getMyAllocation: builder.query({
       query: () => ({
         url: `${HOSTEL_URL}/my-allocation`,
@@ -39,35 +34,39 @@ export const hostelApiSlice = apiSlice.injectEndpoints({
       providesTags: (result) => [{ type: 'Bunk', id: result?.data?._id || 'ALLOCATION' }],
     }),
 
-    // Get user's transaction history
-    getMyTransactions: builder.query({
-      query: () => ({
-        url: `${HOSTEL_URL}/my-transactions`,
-        method: 'GET',
-      }),
-      providesTags: ['Transaction'],
-    }),
+    // ─── Admin endpoints ──────────────────────────────────────────
 
-    // Admin: Set up rooms
-    setupRooms: builder.mutation({
+    // Create a new hostel (male/female)
+    createHostel: builder.mutation({
       query: (data) => ({
-        url: `${HOSTEL_URL}/admin/setup`,
+        url: `${HOSTEL_URL}/admin/hostel`,
         method: 'POST',
         body: data,
       }),
-      invalidatesTags: ['Bunk'],
+      invalidatesTags: ['Hostel'],
     }),
 
-    // Admin: Get all transactions
-    getAllTransactions: builder.query({
-      query: () => ({
-        url: `${HOSTEL_URL}/admin/transactions`,
-        method: 'GET',
+    // Create a building under a hostel
+    createBuilding: builder.mutation({
+      query: (data) => ({
+        url: `${HOSTEL_URL}/admin/building`,
+        method: 'POST',
+        body: data,
       }),
-      providesTags: ['Transaction'],
+      invalidatesTags: ['Building'],
     }),
 
-    // ─── NEW: Get all bunks (admin) ──────────────────────────
+    // Create a room with auto‑generated bunks
+    createRoom: builder.mutation({
+      query: (data) => ({
+        url: `${HOSTEL_URL}/admin/room`,
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['Room', 'Bunk'],
+    }),
+
+    // Get all bunks (admin overview)
     getAllBunks: builder.query({
       query: () => ({
         url: `${HOSTEL_URL}/admin/bunks`,
@@ -75,16 +74,28 @@ export const hostelApiSlice = apiSlice.injectEndpoints({
       }),
       providesTags: ['Bunk'],
     }),
+
+    // Delete a hostel (cascade)
+    deleteHostel: builder.mutation({
+      query: (id) => ({
+        url: `${HOSTEL_URL}/admin/hostel/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Hostel', 'Building', 'Room', 'Bunk'],
+    }),
   }),
 });
 
 export const {
-  useGetAvailableBunksQuery,
-  useInitiatePaymentMutation,
-  useVerifyPaymentQuery,
+  // User endpoints
+  useGetHostelsQuery,
+  useAllocateBunkMutation,
   useGetMyAllocationQuery,
-  useGetMyTransactionsQuery,
-  useSetupRoomsMutation,
-  useGetAllTransactionsQuery,
-  useGetAllBunksQuery,   // ✅ exported
+
+  // Admin endpoints
+  useCreateHostelMutation,
+  useCreateBuildingMutation,
+  useCreateRoomMutation,
+  useGetAllBunksQuery,
+  useDeleteHostelMutation,
 } = hostelApiSlice;

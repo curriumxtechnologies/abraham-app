@@ -17,16 +17,16 @@ import {
   LogIn,
   X,
   Loader2,
+  ChevronRight,
 } from 'lucide-react';
 import FloatingShapes from '../../components/common/FloatingShapes';
 import MainLayout from '../../layouts/MainLayout';
 import Button from '../../components/buttons/Button';
 // ─── API hooks ───
 import { useGetUserInfoQuery } from '../../slices/userApiSlice';
-import { useGetMyAllocationQuery } from '../../slices/hostelApiSlice';
+import { useGetMyAllocationQuery, useGetHostelsQuery, useAllocateBunkMutation } from '../../slices/hostelApiSlice';
 import { useGetMyHistoryQuery } from '../../slices/checkInApiSlice';
 import { useGetComplaintsQuery } from '../../slices/complaintApiSlice';
-import { useGetAvailableBunksQuery, useInitiatePaymentMutation } from '../../slices/hostelApiSlice';
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -34,28 +34,31 @@ const HomePage = () => {
 
   // ─── Modal state ─────────────────────────────────────────────
   const [showHostelModal, setShowHostelModal] = useState(false);
-  const [selectedBunk, setSelectedBunk] = useState(null);
-  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [selectedBunkId, setSelectedBunkId] = useState(null);
+  const [allocating, setAllocating] = useState(false);
+  const [selectedHostelId, setSelectedHostelId] = useState('');
+  const [selectedBuildingId, setSelectedBuildingId] = useState('');
 
   // ─── Queries ──────────────────────────────────────────────────
-  const { data: userData, isLoading: userLoading, error: userError } = useGetUserInfoQuery();
+  const { data: userData, isLoading: userLoading, error: userError, refetch: refetchUser } = useGetUserInfoQuery();
   const { data: allocationData, isLoading: allocLoading, refetch: refetchAllocation } = useGetMyAllocationQuery();
   const { data: historyData, isLoading: historyLoading } = useGetMyHistoryQuery(undefined, {
-    skip: !allocationData?.data, // only fetch if allocated
+    skip: !allocationData?.data,
   });
   const { data: complaintsData, isLoading: complaintsLoading } = useGetComplaintsQuery();
-  const { data: availableBunksData, isLoading: bunksLoading, refetch: refetchBunks } = useGetAvailableBunksQuery(undefined, {
+  const { data: hostelsData, isLoading: hostelsLoading, refetch: refetchHostels } = useGetHostelsQuery(undefined, {
     skip: !showHostelModal,
   });
 
-  // ─── Mutations ───────────────────────────────────────────────
-  const [initiatePayment] = useInitiatePaymentMutation();
+  // ─── Mutation ───────────────────────────────────────────────
+  const [allocateBunk, { isLoading: allocateLoading }] = useAllocateBunkMutation();
 
   // ─── Derived state ────────────────────────────────────────────
   const user = userData?.user;
   const allocatedBunk = allocationData?.data;
   const checkInHistory = historyData?.data || [];
   const complaints = complaintsData?.data || [];
+  const hostels = hostelsData?.data || [];
 
   // Determine current status (inside/outside) from most recent check-in
   const latestRecord = checkInHistory.length > 0 ? checkInHistory[0] : null;
@@ -72,8 +75,8 @@ const HomePage = () => {
         type: isCheckIn ? 'check-in' : 'check-out',
         title: isCheckIn ? 'Checked In' : 'Checked Out',
         description: isCheckIn
-          ? `You returned to Room ${allocatedBunk.roomNumber}`
-          : `You left Room ${allocatedBunk.roomNumber}`,
+          ? `You returned to Room ${allocatedBunk.roomId?.roomNumber || allocatedBunk.roomNumber}`
+          : `You left Room ${allocatedBunk.roomId?.roomNumber || allocatedBunk.roomNumber}`,
         time: new Date(isCheckIn ? latestRecord.returnTime : latestRecord.checkoutTime).toLocaleString(),
         icon: isCheckIn ? LogIn : LogOut,
         color: isCheckIn ? 'text-green-500' : 'text-orange-500',
@@ -99,28 +102,40 @@ const HomePage = () => {
 
   // ─── Handlers ─────────────────────────────────────────────────
   const handleSelectBunk = (bunkId) => {
-    setSelectedBunk(bunkId);
+    setSelectedBunkId(bunkId);
   };
 
-  const handleConfirmSelection = async () => {
-    if (!selectedBunk) return;
-    setPaymentLoading(true);
+  const handleConfirmAllocation = async () => {
+    if (!selectedBunkId) return;
+    setAllocating(true);
     try {
-      const result = await initiatePayment({ bunkId: selectedBunk }).unwrap();
+      const result = await allocateBunk({ bunkId: selectedBunkId }).unwrap();
       if (result.success) {
-        // Redirect to Paystack
-        window.location.href = result.data.authorization_url;
+        // Refetch allocation and close modal
+        await refetchAllocation();
+        await refetchUser();
+        setShowHostelModal(false);
+        setSelectedBunkId(null);
+        setSelectedHostelId('');
+        setSelectedBuildingId('');
       } else {
-        alert(result.message || 'Payment initiation failed');
+        alert(result.message || 'Allocation failed');
       }
     } catch (error) {
-      alert(error?.data?.message || 'An error occurred');
+      alert(error?.data?.message || 'An error occurred during allocation');
     } finally {
-      setPaymentLoading(false);
-      setShowHostelModal(false);
-      setSelectedBunk(null);
+      setAllocating(false);
     }
   };
+
+  // Reset selection when modal closes
+  useEffect(() => {
+    if (!showHostelModal) {
+      setSelectedBunkId(null);
+      setSelectedHostelId('');
+      setSelectedBuildingId('');
+    }
+  }, [showHostelModal]);
 
   // ─── Loading / Error states ──────────────────────────────────
   if (userLoading || allocLoading || historyLoading || complaintsLoading) {
@@ -212,7 +227,7 @@ const HomePage = () => {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-[#0E2F76]">
-                      Room {allocatedBunk.roomNumber}
+                      Room {allocatedBunk.roomId?.roomNumber || allocatedBunk.roomNumber}
                     </p>
                     <p className="text-xs text-[#0E2F76]/50">
                       Bunk {allocatedBunk.bunkNumber}
@@ -449,7 +464,9 @@ const HomePage = () => {
               <button
                 onClick={() => {
                   setShowHostelModal(false);
-                  setSelectedBunk(null);
+                  setSelectedBunkId(null);
+                  setSelectedHostelId('');
+                  setSelectedBuildingId('');
                 }}
                 className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#AAC0E1]/10 transition-all"
               >
@@ -459,42 +476,104 @@ const HomePage = () => {
 
             {/* Body */}
             <div className="px-6 py-5">
-              {bunksLoading ? (
+              {hostelsLoading ? (
                 <div className="flex justify-center py-8">
                   <Loader2 size={32} className="animate-spin text-[#0E2F76]" />
                 </div>
-              ) : availableBunksData?.data && Object.keys(availableBunksData.data).length > 0 ? (
+              ) : hostels.length > 0 ? (
                 <div className="space-y-4">
-                  {Object.entries(availableBunksData.data).map(([roomNumber, bunks]) => (
-                    <div key={roomNumber} className="bg-[#F5FEFF] rounded-[16px] p-4 border border-[#AAC0E1]/20">
-                      <h3 className="text-sm font-semibold text-[#0E2F76] mb-3">
-                        Room {roomNumber}
-                      </h3>
-                      <div className="grid grid-cols-2 gap-2">
-                        {bunks.map((bunk) => (
-                          <button
-                            key={bunk._id}
-                            onClick={() => handleSelectBunk(bunk._id)}
-                            className={`p-3 rounded-[12px] border-2 text-sm font-medium transition-all ${
-                              selectedBunk === bunk._id
-                                ? 'border-[#0E2F76] bg-[#0E2F76]/5 text-[#0E2F76]'
-                                : 'border-[#AAC0E1]/30 bg-white text-[#0E2F76]/70 hover:border-[#0E2F76]/30'
-                            }`}
-                          >
-                            Bunk {bunk.bunkNumber}
-                            <span className="block text-xs font-normal text-[#0E2F76]/50 mt-0.5">
-                              ₦{bunk.price.toLocaleString()}
-                            </span>
-                          </button>
+                  {/* Hostel filter (if multiple) */}
+                  {hostels.length > 1 && (
+                    <div className="mb-2">
+                      <label className="text-xs font-medium text-gray-600">Select Hostel</label>
+                      <select
+                        value={selectedHostelId}
+                        onChange={(e) => {
+                          setSelectedHostelId(e.target.value);
+                          setSelectedBuildingId('');
+                          setSelectedBunkId(null);
+                        }}
+                        className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
+                      >
+                        <option value="">-- Choose Hostel --</option>
+                        {hostels.map((h) => (
+                          <option key={h._id} value={h._id}>
+                            {h.name} ({h.type})
+                          </option>
                         ))}
-                      </div>
+                      </select>
                     </div>
-                  ))}
+                  )}
+
+                  {/* Building selection (if multiple) */}
+                  {selectedHostelId && (
+                    <div className="mb-2">
+                      <label className="text-xs font-medium text-gray-600">Select Building</label>
+                      <select
+                        value={selectedBuildingId}
+                        onChange={(e) => {
+                          setSelectedBuildingId(e.target.value);
+                          setSelectedBunkId(null);
+                        }}
+                        className="w-full mt-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0E2F76]/10"
+                      >
+                        <option value="">-- Choose Building --</option>
+                        {hostels
+                          .find((h) => h._id === selectedHostelId)
+                          ?.buildings?.map((b) => (
+                            <option key={b._id} value={b._id}>
+                              {b.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Rooms & Bunks */}
+                  {selectedBuildingId && (
+                    <div className="space-y-3">
+                      {hostels
+                        .find((h) => h._id === selectedHostelId)
+                        ?.buildings?.find((b) => b._id === selectedBuildingId)
+                        ?.rooms?.map((room) => {
+                          const availableBunks = room.bunks?.filter((b) => b.isAvailable) || [];
+                          if (availableBunks.length === 0) return null;
+                          return (
+                            <div key={room._id} className="bg-[#F5FEFF] rounded-[16px] p-4 border border-[#AAC0E1]/20">
+                              <h3 className="text-sm font-semibold text-[#0E2F76] mb-3">
+                                Room {room.roomNumber}
+                              </h3>
+                              <div className="grid grid-cols-2 gap-2">
+                                {availableBunks.map((bunk) => (
+                                  <button
+                                    key={bunk._id}
+                                    onClick={() => handleSelectBunk(bunk._id)}
+                                    className={`p-3 rounded-[12px] border-2 text-sm font-medium transition-all ${
+                                      selectedBunkId === bunk._id
+                                        ? 'border-[#0E2F76] bg-[#0E2F76]/5 text-[#0E2F76]'
+                                        : 'border-[#AAC0E1]/30 bg-white text-[#0E2F76]/70 hover:border-[#0E2F76]/30'
+                                    }`}
+                                  >
+                                    Bunk {bunk.bunkNumber}
+                                    {room.price > 0 && (
+                                      <span className="block text-xs font-normal text-[#0E2F76]/50 mt-0.5">
+                                        ₦{room.price.toLocaleString()}
+                                      </span>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-8">
                   <Bed size={40} className="text-[#AAC0E1] mx-auto mb-3" />
-                  <p className="text-[#0E2F76]/60">No available bunks at the moment.</p>
+                  <p className="text-[#0E2F76]/60">No hostels or bunks available at the moment.</p>
+                  <p className="text-xs text-[#0E2F76]/40 mt-1">Contact admin for assistance.</p>
                 </div>
               )}
             </div>
@@ -504,20 +583,20 @@ const HomePage = () => {
               <Button
                 variant="primary"
                 fullWidth
-                disabled={!selectedBunk || paymentLoading}
-                onClick={handleConfirmSelection}
+                disabled={!selectedBunkId || allocating || allocateLoading}
+                onClick={handleConfirmAllocation}
               >
-                {paymentLoading ? (
+                {allocating || allocateLoading ? (
                   <div className="flex items-center justify-center gap-2">
                     <Loader2 size={18} className="animate-spin" />
-                    Processing...
+                    Allocating...
                   </div>
                 ) : (
-                  'Confirm Selection & Pay'
+                  'Confirm Allocation'
                 )}
               </Button>
               <p className="text-xs text-[#0E2F76]/40 text-center mt-3">
-                You will be redirected to Paystack to complete payment
+                You can only allocate one bunk. This action is final.
               </p>
             </div>
           </div>
