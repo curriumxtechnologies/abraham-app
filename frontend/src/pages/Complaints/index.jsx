@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
+import { useDispatch } from 'react-redux';
+import {
   Plus,
   Search,
   Filter,
@@ -21,29 +22,53 @@ import {
   PaintBucket,
   Thermometer,
   Bug,
-  Wind
+  Wind,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import MainLayout from '../../layouts/MainLayout';
 import FloatingShapes from '../../components/common/FloatingShapes';
+import Button from '../../components/buttons/Button';
+
+// ─── API Hooks ──────────────────────────────────────────────────
+import {
+  useGetComplaintsQuery,
+  useCreateComplaintMutation,
+} from '../../slices/complaintApiSlice';
 
 const Complaints = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  // ─── Local state ──────────────────────────────────────────────
   const [showNewComplaint, setShowNewComplaint] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterType, setFilterType] = useState('all');
-  const [sortBy, setSortBy] = useState('newest');
   const [showFilters, setShowFilters] = useState(false);
-  
-  // New complaint form state
+
+  // New complaint form
   const [complaintType, setComplaintType] = useState('');
   const [complaintLocation, setComplaintLocation] = useState('');
   const [complaintDescription, setComplaintDescription] = useState('');
-  const [complaintImages, setComplaintImages] = useState([]);
+  const [anonymous, setAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  // Lock body scroll when modal is open
+  // ─── API calls ─────────────────────────────────────────────────
+  const {
+    data: complaintsData,
+    isLoading,
+    isError,
+    refetch,
+  } = useGetComplaintsQuery();
+
+  const [createComplaint] = useCreateComplaintMutation();
+
+  // ─── Derived state ────────────────────────────────────────────
+  const complaints = complaintsData?.data || [];
+
+  // ─── Lock body scroll on modal open ──────────────────────────
   useEffect(() => {
     if (showNewComplaint) {
       document.body.style.overflow = 'hidden';
@@ -55,191 +80,133 @@ const Complaints = () => {
     };
   }, [showNewComplaint]);
 
-  // Demo complaints data
-  const [complaints] = useState([
-    {
-      id: 1,
-      type: 'Plumbing',
-      location: 'Bathroom',
-      title: 'Leaking Pipe in Bathroom',
-      description: 'The pipe under the sink has been leaking for two days. Water is spreading across the bathroom floor and making it slippery.',
-      status: 'In Progress',
-      date: 'Jun 11, 2026',
-      time: '10:30 AM',
-      studentName: 'John Doe',
-      studentId: 'STU/2024/001',
-      hostelName: 'Hostel A',
-      roomNumber: 'Room 3',
-      bunkNumber: 'Bunk 2',
-      images: 2,
-    },
-    {
-      id: 2,
-      type: 'Furniture',
-      location: 'Room',
-      title: 'Broken Study Chair',
-      description: 'My study chair is broken. The backrest has come off completely and I cannot use it for studying.',
-      status: 'Submitted',
-      date: 'Jun 10, 2026',
-      time: '02:15 PM',
-      studentName: 'John Doe',
-      studentId: 'STU/2024/001',
-      hostelName: 'Hostel A',
-      roomNumber: 'Room 3',
-      bunkNumber: 'Bunk 2',
-      images: 1,
-    },
-    {
-      id: 3,
-      type: 'Electrical',
-      location: 'Room',
-      title: 'Faulty Electrical Socket',
-      description: 'The electrical socket near my bunk is not working. It sparks when I try to plug anything in. This is a safety hazard.',
-      status: 'Resolved',
-      date: 'Jun 8, 2026',
-      time: '09:45 AM',
-      studentName: 'John Doe',
-      studentId: 'STU/2024/001',
-      hostelName: 'Hostel A',
-      roomNumber: 'Room 3',
-      bunkNumber: 'Bunk 2',
-      images: 0,
-    },
-    {
-      id: 4,
-      type: 'Cleaning',
-      location: 'Bathroom',
-      title: 'Bathroom Not Cleaned',
-      description: 'The shared bathroom on our floor hasn\'t been cleaned for over a week. The floor is dirty and there\'s a bad smell.',
-      status: 'Closed',
-      date: 'Jun 5, 2026',
-      time: '11:00 AM',
-      studentName: 'John Doe',
-      studentId: 'STU/2024/001',
-      hostelName: 'Hostel A',
-      roomNumber: 'Room 3',
-      bunkNumber: 'Bunk 2',
-      images: 0,
-    },
-    {
-      id: 5,
-      type: 'Plumbing',
-      location: 'Toilet',
-      title: 'Toilet Not Flushing',
-      description: 'The toilet in our bathroom is not flushing properly. Water keeps running and it\'s wasting a lot of water.',
-      status: 'Acknowledged',
-      date: 'Jun 3, 2026',
-      time: '08:00 AM',
-      studentName: 'John Doe',
-      studentId: 'STU/2024/001',
-      hostelName: 'Hostel A',
-      roomNumber: 'Room 3',
-      bunkNumber: 'Bunk 2',
-      images: 3,
-    },
-  ]);
-
-  const complaintTypes = [
-    { id: 'plumbing', label: 'Plumbing', icon: Droplets, color: 'text-blue-500', bgColor: 'bg-blue-50' },
-    { id: 'electrical', label: 'Electrical', icon: Zap, color: 'text-yellow-500', bgColor: 'bg-yellow-50' },
-    { id: 'furniture', label: 'Furniture', icon: Armchair, color: 'text-purple-500', bgColor: 'bg-purple-50' },
-    { id: 'cleaning', label: 'Cleaning', icon: Wind, color: 'text-green-500', bgColor: 'bg-green-50' },
-    { id: 'painting', label: 'Painting', icon: PaintBucket, color: 'text-orange-500', bgColor: 'bg-orange-50' },
-    { id: 'door-window', label: 'Door/Window', icon: DoorOpen, color: 'text-red-500', bgColor: 'bg-red-50' },
-    { id: 'temperature', label: 'Temperature', icon: Thermometer, color: 'text-cyan-500', bgColor: 'bg-cyan-50' },
-    { id: 'pest-control', label: 'Pest Control', icon: Bug, color: 'text-rose-500', bgColor: 'bg-rose-50' },
-    { id: 'other', label: 'Other', icon: Wrench, color: 'text-gray-500', bgColor: 'bg-gray-50' },
-  ];
-
-  const complaintLocations = [
-    { id: 'room', label: 'Room', icon: DoorOpen },
-    { id: 'bathroom', label: 'Bathroom', icon: Bath },
-    { id: 'toilet', label: 'Toilet', icon: Toilet },
-  ];
+  // ─── UI helpers ──────────────────────────────────────────────
+  const getStatusDisplay = (status) => {
+    const map = {
+      pending: 'Submitted',
+      read: 'Acknowledged',
+      done: 'Resolved',
+    };
+    return map[status] || status;
+  };
 
   const getStatusColor = (status) => {
     const colors = {
-      'Submitted': 'bg-yellow-50 text-yellow-600 border-yellow-200',
-      'Acknowledged': 'bg-blue-50 text-blue-600 border-blue-200',
-      'In Progress': 'bg-indigo-50 text-indigo-600 border-indigo-200',
-      'Resolved': 'bg-green-50 text-green-600 border-green-200',
-      'Closed': 'bg-gray-50 text-gray-600 border-gray-200',
+      pending: 'bg-yellow-50 text-yellow-600 border-yellow-200',
+      read: 'bg-blue-50 text-blue-600 border-blue-200',
+      done: 'bg-green-50 text-green-600 border-green-200',
     };
-    return colors[status] || colors['Submitted'];
+    return colors[status] || colors.pending;
   };
 
-  const getTypeDetails = (type) => {
-    return complaintTypes.find(t => t.label === type) || complaintTypes[8];
+  // Type icons mapping (based on category field)
+  const typeIcons = {
+    'Plumbing': { icon: Droplets, color: 'text-blue-500', bg: 'bg-blue-50' },
+    'Electrical': { icon: Zap, color: 'text-yellow-500', bg: 'bg-yellow-50' },
+    'Furniture': { icon: Armchair, color: 'text-purple-500', bg: 'bg-purple-50' },
+    'Cleaning': { icon: Wind, color: 'text-green-500', bg: 'bg-green-50' },
+    'Painting': { icon: PaintBucket, color: 'text-orange-500', bg: 'bg-orange-50' },
+    'Door/Window': { icon: DoorOpen, color: 'text-red-500', bg: 'bg-red-50' },
+    'Temperature': { icon: Thermometer, color: 'text-cyan-500', bg: 'bg-cyan-50' },
+    'Pest Control': { icon: Bug, color: 'text-rose-500', bg: 'bg-rose-50' },
+    'General': { icon: Wrench, color: 'text-gray-500', bg: 'bg-gray-50' },
   };
 
-  const getLocationIcon = (location) => {
-    const loc = complaintLocations.find(l => l.label === location);
-    return loc ? loc.icon : DoorOpen;
+  const getTypeDetails = (category) => {
+    return typeIcons[category] || typeIcons['General'];
   };
 
-  // Filter and sort complaints
+  const complaintTypes = Object.keys(typeIcons).map(label => ({ label }));
+  // Locations: We don't have a location field, we can either add or skip.
+  // For now, we'll use a fixed 'Room' but we could add location to model later.
+  const complaintLocations = [
+    { id: 'room', label: 'Room' },
+    { id: 'bathroom', label: 'Bathroom' },
+    { id: 'toilet', label: 'Toilet' },
+  ];
+
+  // ─── Filter and search ────────────────────────────────────────
   const filteredComplaints = complaints
     .filter(complaint => {
       if (filterStatus !== 'all' && complaint.status !== filterStatus) return false;
-      if (filterType !== 'all' && complaint.type !== filterType) return false;
-      if (searchQuery && !complaint.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      if (filterType !== 'all' && complaint.category !== filterType) return false;
+      if (searchQuery && !complaint.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
+          !complaint.description.toLowerCase().includes(searchQuery.toLowerCase())) return false;
       return true;
     })
-    .sort((a, b) => {
-      if (sortBy === 'newest') return new Date(b.date) - new Date(a.date);
-      if (sortBy === 'oldest') return new Date(a.date) - new Date(b.date);
-      return 0;
-    });
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    const newImages = files.map(file => ({
-      id: Date.now() + Math.random(),
-      file,
-      preview: URL.createObjectURL(file),
-    }));
-    setComplaintImages(prev => [...prev, ...newImages].slice(0, 5));
-  };
-
-  const removeImage = (id) => {
-    setComplaintImages(prev => {
-      const filtered = prev.filter(img => img.id !== id);
-      const removed = prev.find(img => img.id === id);
-      if (removed) URL.revokeObjectURL(removed.preview);
-      return filtered;
-    });
-  };
-
+  // ─── Handlers ──────────────────────────────────────────────────
   const handleSubmitComplaint = async () => {
     if (!complaintType || !complaintLocation || !complaintDescription.trim()) return;
 
     setIsSubmitting(true);
+    try {
+      await createComplaint({
+        title: `${complaintType} issue in ${complaintLocation}`,
+        description: complaintDescription,
+        category: complaintType,
+        anonymous,
+      }).unwrap();
 
-    await new Promise(resolve => setTimeout(resolve, 1500));
+      setSubmitSuccess(true);
+      await refetch();
 
-    setSubmitSuccess(true);
-    setIsSubmitting(false);
-
-    setTimeout(() => {
-      setShowNewComplaint(false);
-      setSubmitSuccess(false);
-      setComplaintType('');
-      setComplaintLocation('');
-      setComplaintDescription('');
-      setComplaintImages([]);
-    }, 2000);
+      // Reset form after success
+      setTimeout(() => {
+        setShowNewComplaint(false);
+        setSubmitSuccess(false);
+        setComplaintType('');
+        setComplaintLocation('');
+        setComplaintDescription('');
+        setAnonymous(false);
+      }, 2000);
+    } catch (error) {
+      alert(error?.data?.message || 'Failed to submit complaint');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const statusFilters = ['all', 'Submitted', 'Acknowledged', 'In Progress', 'Resolved', 'Closed'];
-  const typeFilters = ['all', 'Plumbing', 'Electrical', 'Furniture', 'Cleaning', 'Painting', 'Door/Window', 'Temperature', 'Pest Control', 'Other'];
+  // ─── Loading / Error states ───────────────────────────────────
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-[#AAC0E1] border-t-[#0E2F76] rounded-full animate-spin" />
+            <p className="text-[#0E2F76]/60 text-sm font-inter">Loading complaints...</p>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
+  if (isError) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
+            <p className="text-red-600 font-inter">Failed to load complaints. Please try again.</p>
+            <button
+              onClick={refetch}
+              className="mt-4 px-6 py-2 bg-[#0E2F76] text-white rounded-[12px] text-sm font-medium hover:bg-[#0a2560] transition-all"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // ─── Render ────────────────────────────────────────────────────
   return (
     <MainLayout>
       <FloatingShapes />
-      
-      {/* Main Content */}
+
       <div className="relative z-10 min-h-screen">
-        
         {/* Header */}
         <div className="px-6 pt-8 pb-4">
           <div className="flex items-center justify-between mb-6">
@@ -251,7 +218,6 @@ const Complaints = () => {
                 Report issues in your room or bathroom
               </p>
             </div>
-            
             <button
               onClick={() => setShowNewComplaint(true)}
               className="w-11 h-11 bg-[#0E2F76] rounded-full flex items-center justify-center shadow-lg shadow-[#0E2F76]/20 hover:bg-[#0a2560] transition-all duration-300 active:scale-95"
@@ -275,8 +241,8 @@ const Complaints = () => {
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`w-11 h-11 flex items-center justify-center rounded-full border transition-all duration-300 ${
-                showFilters 
-                  ? 'bg-[#0E2F76] border-[#0E2F76]' 
+                showFilters
+                  ? 'bg-[#0E2F76] border-[#0E2F76]'
                   : 'bg-white border-[#AAC0E1]/30'
               }`}
             >
@@ -292,7 +258,7 @@ const Complaints = () => {
                   Status
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {statusFilters.map(status => (
+                  {['all', 'pending', 'read', 'done'].map(status => (
                     <button
                       key={status}
                       onClick={() => setFilterStatus(status)}
@@ -302,7 +268,7 @@ const Complaints = () => {
                           : 'bg-[#AAC0E1]/10 text-[#0E2F76]/60 hover:bg-[#AAC0E1]/20'
                       }`}
                     >
-                      {status === 'all' ? 'All' : status}
+                      {status === 'all' ? 'All' : getStatusDisplay(status)}
                     </button>
                   ))}
                 </div>
@@ -313,7 +279,7 @@ const Complaints = () => {
                   Issue Type
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {typeFilters.map(type => (
+                  {['all', ...complaintTypes.map(t => t.label)].map(type => (
                     <button
                       key={type}
                       onClick={() => setFilterType(type)}
@@ -339,21 +305,22 @@ const Complaints = () => {
               <p className="text-xs text-[#0E2F76]/40 mb-2">
                 {filteredComplaints.length} complaint{filteredComplaints.length !== 1 ? 's' : ''} found
               </p>
-              
+
               {filteredComplaints.map((complaint) => {
-                const typeDetails = getTypeDetails(complaint.type);
+                const typeDetails = getTypeDetails(complaint.category || 'General');
                 const TypeIcon = typeDetails.icon;
-                const LocationIcon = getLocationIcon(complaint.location);
-                
+                const statusDisplay = getStatusDisplay(complaint.status);
+                const isAnonymous = complaint.anonymous;
+
                 return (
                   <div
-                    key={complaint.id}
-                    onClick={() => navigate(`/complaints/${complaint.id}`)}
+                    key={complaint._id}
+                    onClick={() => navigate(`/complaints/${complaint._id}`)}
                     className="bg-white rounded-[20px] p-4 shadow-sm border border-[#AAC0E1]/20 hover:shadow-md transition-all duration-300 cursor-pointer active:scale-[0.99]"
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full ${typeDetails.bgColor} flex items-center justify-center`}>
+                        <div className={`w-10 h-10 rounded-full ${typeDetails.bg} flex items-center justify-center`}>
                           <TypeIcon size={18} className={typeDetails.color} />
                         </div>
                         <div>
@@ -361,36 +328,33 @@ const Complaints = () => {
                             {complaint.title}
                           </h3>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <div className="flex items-center gap-1">
-                              <LocationIcon size={12} className="text-[#AAC0E1]" />
-                              <span className="text-xs text-[#0E2F76]/40">{complaint.location}</span>
-                            </div>
+                            <span className="text-xs text-[#0E2F76]/40">{complaint.category || 'General'}</span>
                             <span className="text-[#AAC0E1]">•</span>
-                            <span className="text-xs text-[#0E2F76]/40">{complaint.date}</span>
+                            <span className="text-xs text-[#0E2F76]/40">
+                              {new Date(complaint.createdAt).toLocaleDateString()}
+                            </span>
+                            {isAnonymous && (
+                              <>
+                                <span className="text-[#AAC0E1]">•</span>
+                                <EyeOff size={12} className="text-[#AAC0E1]" />
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-medium border ${getStatusColor(complaint.status)}`}>
-                        {complaint.status}
+                        {statusDisplay}
                       </span>
                     </div>
-                    
+
                     <p className="text-xs text-[#0E2F76]/60 mb-3 line-clamp-2">
                       {complaint.description}
                     </p>
-                    
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-[#0E2F76]/40">{complaint.type}</span>
-                        {complaint.images > 0 && (
-                          <>
-                            <span className="text-[#AAC0E1]">•</span>
-                            <div className="flex items-center gap-1 text-xs text-[#0E2F76]/40">
-                              <Camera size={12} />
-                              {complaint.images} photo{complaint.images > 1 ? 's' : ''}
-                            </div>
-                          </>
-                        )}
+                        <span className="text-xs text-[#0E2F76]/40">
+                          {isAnonymous ? 'Anonymous' : complaint.user?.fullName || 'User'}
+                        </span>
                       </div>
                       <ChevronRight size={16} className="text-[#AAC0E1]" />
                     </div>
@@ -425,19 +389,13 @@ const Complaints = () => {
         </div>
       </div>
 
-      {/* New Complaint Form Modal */}
+      {/* ─── New Complaint Modal ────────────────────────────────── */}
       {showNewComplaint && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-end justify-center"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/50" 
-            onClick={() => setShowNewComplaint(false)}
-          />
-          
-          {/* Modal Content - Scrollable, sits above bottom nav */}
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowNewComplaint(false)} />
           <div className="relative bg-white rounded-t-[30px] w-full max-w-md max-h-[80vh] overflow-y-auto animate-[slideUp_0.3s_ease-out] shadow-2xl">
             <div className="p-6 pb-24">
               {/* Modal Header */}
@@ -452,7 +410,6 @@ const Complaints = () => {
               </div>
 
               {submitSuccess ? (
-                /* Success State */
                 <div className="text-center py-8">
                   <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
                     <CheckCircle2 size={40} className="text-green-500" />
@@ -465,16 +422,14 @@ const Complaints = () => {
                   </p>
                 </div>
               ) : (
-                /* Form */
                 <div>
-                  {/* Complaint Location */}
+                  {/* Location */}
                   <div className="mb-5">
                     <label className="text-sm font-semibold text-[#0E2F76] mb-3 block">
                       Where is the issue?
                     </label>
                     <div className="grid grid-cols-3 gap-2">
                       {complaintLocations.map(location => {
-                        const Icon = location.icon;
                         const isSelected = complaintLocation === location.label;
                         return (
                           <button
@@ -487,12 +442,6 @@ const Complaints = () => {
                                 : 'bg-white border-[#AAC0E1]/20 hover:border-[#0E2F76]/30'
                             }`}
                           >
-                            <Icon 
-                              size={20} 
-                              className={`mx-auto mb-1 ${
-                                isSelected ? 'text-white' : 'text-[#0E2F76]'
-                              }`} 
-                            />
                             <span className={`text-xs font-medium ${
                               isSelected ? 'text-white' : 'text-[#0E2F76]'
                             }`}>
@@ -504,18 +453,19 @@ const Complaints = () => {
                     </div>
                   </div>
 
-                  {/* Complaint Type */}
+                  {/* Type */}
                   <div className="mb-5">
                     <label className="text-sm font-semibold text-[#0E2F76] mb-3 block">
                       Type of Issue
                     </label>
                     <div className="grid grid-cols-3 gap-2">
                       {complaintTypes.map(type => {
-                        const Icon = type.icon;
+                        const details = getTypeDetails(type.label);
+                        const Icon = details.icon;
                         const isSelected = complaintType === type.label;
                         return (
                           <button
-                            key={type.id}
+                            key={type.label}
                             type="button"
                             onClick={() => setComplaintType(type.label)}
                             className={`p-3 rounded-[16px] border transition-all duration-300 ${
@@ -524,11 +474,11 @@ const Complaints = () => {
                                 : 'bg-white border-[#AAC0E1]/20 hover:border-[#0E2F76]/30'
                             }`}
                           >
-                            <Icon 
-                              size={20} 
+                            <Icon
+                              size={20}
                               className={`mx-auto mb-1 ${
-                                isSelected ? 'text-white' : type.color
-                              }`} 
+                                isSelected ? 'text-white' : details.color
+                              }`}
                             />
                             <span className={`text-xs font-medium ${
                               isSelected ? 'text-white' : 'text-[#0E2F76]'
@@ -542,7 +492,7 @@ const Complaints = () => {
                   </div>
 
                   {/* Description */}
-                  <div className="mb-5">
+                  <div className="mb-4">
                     <label className="text-sm font-semibold text-[#0E2F76] mb-2 block">
                       Describe the Issue
                     </label>
@@ -555,56 +505,23 @@ const Complaints = () => {
                     />
                   </div>
 
-                  {/* Image Upload */}
+                  {/* Anonymous Toggle */}
                   <div className="mb-6">
-                    <label className="text-sm font-semibold text-[#0E2F76] mb-2 block">
-                      Add Photos (Optional)
-                    </label>
-                    
-                    {complaintImages.length > 0 && (
-                      <div className="flex gap-2 mb-3 flex-wrap">
-                        {complaintImages.map(image => (
-                          <div key={image.id} className="relative w-20 h-20 rounded-[12px] overflow-hidden">
-                            <img 
-                              src={image.preview} 
-                              alt="Upload" 
-                              className="w-full h-full object-cover"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeImage(image.id)}
-                              className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
-                            >
-                              <X size={12} className="text-white" />
-                            </button>
-                          </div>
-                        ))}
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={anonymous}
+                        onChange={(e) => setAnonymous(e.target.checked)}
+                        className="w-5 h-5 rounded border-[#AAC0E1] text-[#0E2F76] focus:ring-[#0E2F76]"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-[#0E2F76]">Post anonymously</span>
+                        <p className="text-xs text-[#0E2F76]/50">Your name will be hidden from the public</p>
                       </div>
-                    )}
-                    
-                    {complaintImages.length < 5 && (
-                      <label className="flex items-center gap-3 p-4 bg-[#AAC0E1]/10 rounded-[16px] border-2 border-dashed border-[#AAC0E1]/30 cursor-pointer hover:border-[#0E2F76]/30 transition-all duration-300">
-                        <div className="w-10 h-10 rounded-full bg-[#AAC0E1]/20 flex items-center justify-center">
-                          <Camera size={18} className="text-[#0E2F76]" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-[#0E2F76]">Add Photos</p>
-                          <p className="text-xs text-[#0E2F76]/50">
-                            {complaintImages.length}/5 photos (optional)
-                          </p>
-                        </div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          onChange={handleImageUpload}
-                          className="hidden"
-                        />
-                      </label>
-                    )}
+                    </label>
                   </div>
 
-                  {/* Submit Button */}
+                  {/* Submit */}
                   <button
                     type="button"
                     onClick={handleSubmitComplaint}
@@ -614,7 +531,7 @@ const Complaints = () => {
                     {isSubmitting ? (
                       <>
                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Submitting Complaint...
+                        Submitting...
                       </>
                     ) : (
                       'Submit Complaint'

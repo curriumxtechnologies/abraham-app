@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
+import {
   Search,
   MessageSquare,
   Download,
@@ -19,12 +19,22 @@ import {
   DoorOpen,
   PaintBucket,
   Thermometer,
-  Bug
+  Bug,
+  Loader2,
 } from 'lucide-react';
 import AdminLayout from '../../../layouts/AdminLayout';
 
+// ─── API Hooks ──────────────────────────────────────────────────
+import {
+  useGetComplaintsQuery,
+  useMarkAsReadMutation,
+  useMarkAsDoneMutation,
+} from '../../../slices/complaintApiSlice';
+
 const AdminComplaints = () => {
   const navigate = useNavigate();
+
+  // ─── State ────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [filterHostel, setFilterHostel] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -32,107 +42,22 @@ const AdminComplaints = () => {
   const [sortBy, setSortBy] = useState('newest');
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [showComplaintModal, setShowComplaintModal] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
 
-  const [complaints, setComplaints] = useState([
-    {
-      id: 1,
-      studentName: 'John Doe',
-      studentId: 'STU/2024/001',
-      hostelName: 'Hostel A',
-      roomNumber: 'Room 3',
-      bunkNumber: 'Bunk 2',
-      type: 'Plumbing',
-      location: 'Bathroom',
-      title: 'Leaking Pipe in Bathroom',
-      description: 'The pipe under the sink has been leaking for two days. Water is spreading across the bathroom floor and making it slippery.',
-      status: 'In Progress',
-      date: 'Jun 18, 2026',
-      time: '10:30 AM',
-      images: 2,
-    },
-    {
-      id: 2,
-      studentName: 'Jane Smith',
-      studentId: 'STU/2024/002',
-      hostelName: 'Hostel B',
-      roomNumber: 'Room 7',
-      bunkNumber: 'Bunk 4',
-      type: 'Furniture',
-      location: 'Room',
-      title: 'Broken Study Chair',
-      description: 'My study chair is broken. The backrest has come off completely and I cannot use it for studying.',
-      status: 'Submitted',
-      date: 'Jun 18, 2026',
-      time: '08:15 AM',
-      images: 1,
-    },
-    {
-      id: 3,
-      studentName: 'Mike Johnson',
-      studentId: 'STU/2024/003',
-      hostelName: 'Hostel A',
-      roomNumber: 'Room 2',
-      bunkNumber: 'Bunk 1',
-      type: 'Electrical',
-      location: 'Room',
-      title: 'Faulty Electrical Socket',
-      description: 'The electrical socket near my bunk is not working. It sparks when I try to plug anything in.',
-      status: 'Acknowledged',
-      date: 'Jun 17, 2026',
-      time: '02:45 PM',
-      images: 0,
-    },
-    {
-      id: 4,
-      studentName: 'Sarah Williams',
-      studentId: 'STU/2024/004',
-      hostelName: 'Hostel C',
-      roomNumber: 'Room 5',
-      bunkNumber: 'Bunk 3',
-      type: 'Cleaning',
-      location: 'Bathroom',
-      title: 'Bathroom Not Cleaned',
-      description: 'The shared bathroom on our floor hasn\'t been cleaned for over a week.',
-      status: 'Resolved',
-      date: 'Jun 16, 2026',
-      time: '11:00 AM',
-      images: 0,
-    },
-    {
-      id: 5,
-      studentName: 'David Brown',
-      studentId: 'STU/2024/005',
-      hostelName: 'Hostel A',
-      roomNumber: 'Room 1',
-      bunkNumber: 'Bunk 6',
-      type: 'Plumbing',
-      location: 'Toilet',
-      title: 'Toilet Not Flushing',
-      description: 'The toilet in our bathroom is not flushing properly. Water keeps running.',
-      status: 'Closed',
-      date: 'Jun 15, 2026',
-      time: '09:30 AM',
-      images: 3,
-    },
-    {
-      id: 6,
-      studentName: 'Emily Davis',
-      studentId: 'STU/2024/006',
-      hostelName: 'Hostel B',
-      roomNumber: 'Room 8',
-      bunkNumber: 'Bunk 2',
-      type: 'Painting',
-      location: 'Room',
-      title: 'Peeling Paint on Walls',
-      description: 'The paint on the walls in my room is peeling off badly.',
-      status: 'Submitted',
-      date: 'Jun 18, 2026',
-      time: '07:00 AM',
-      images: 1,
-    },
-  ]);
+  // ─── Queries & Mutations ─────────────────────────────────────
+  const {
+    data: complaintsData,
+    isLoading,
+    error,
+    refetch,
+  } = useGetComplaintsQuery();
 
+  const [markAsRead, { isLoading: readLoading }] = useMarkAsReadMutation();
+  const [markAsDone, { isLoading: doneLoading }] = useMarkAsDoneMutation();
+
+  // ─── Derived data ─────────────────────────────────────────────
+  const complaints = complaintsData?.data || [];
+
+  // ─── UI helpers ──────────────────────────────────────────────
   const complaintTypes = [
     { id: 'plumbing', label: 'Plumbing', icon: Droplets, color: 'text-blue-600', bgColor: 'bg-blue-50' },
     { id: 'electrical', label: 'Electrical', icon: Zap, color: 'text-yellow-600', bgColor: 'bg-yellow-50' },
@@ -142,40 +67,40 @@ const AdminComplaints = () => {
     { id: 'door-window', label: 'Door/Window', icon: DoorOpen, color: 'text-red-600', bgColor: 'bg-red-50' },
     { id: 'temperature', label: 'Temperature', icon: Thermometer, color: 'text-cyan-600', bgColor: 'bg-cyan-50' },
     { id: 'pest-control', label: 'Pest Control', icon: Bug, color: 'text-rose-600', bgColor: 'bg-rose-50' },
+    { id: 'general', label: 'General', icon: Wrench, color: 'text-gray-600', bgColor: 'bg-gray-50' },
   ];
 
-  const hostels = ['all', 'Hostel A', 'Hostel B', 'Hostel C'];
-  const statuses = ['all', 'Submitted', 'Acknowledged', 'In Progress', 'Resolved', 'Closed'];
-  const types = ['all', 'Plumbing', 'Electrical', 'Furniture', 'Cleaning', 'Painting', 'Door/Window', 'Temperature', 'Pest Control'];
+  const getTypeDetails = (category) => {
+    return complaintTypes.find(t => t.label === category) || complaintTypes[8];
+  };
+
+  // Map backend status to display labels
+  const statusDisplayMap = {
+    pending: 'Submitted',
+    read: 'Acknowledged',
+    done: 'Resolved',
+  };
 
   const getStatusColor = (status) => {
     const colors = {
-      'Submitted': 'bg-yellow-50 text-yellow-700 border-yellow-200',
-      'Acknowledged': 'bg-blue-50 text-blue-700 border-blue-200',
-      'In Progress': 'bg-indigo-50 text-indigo-700 border-indigo-200',
-      'Resolved': 'bg-green-50 text-green-700 border-green-200',
-      'Closed': 'bg-gray-50 text-gray-700 border-gray-200',
+      pending: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+      read: 'bg-blue-50 text-blue-700 border-blue-200',
+      done: 'bg-green-50 text-green-700 border-green-200',
     };
-    return colors[status] || colors['Submitted'];
+    return colors[status] || colors.pending;
   };
 
   const getStatusDot = (status) => {
     const dots = {
-      'Submitted': 'bg-yellow-500',
-      'Acknowledged': 'bg-blue-500',
-      'In Progress': 'bg-indigo-500',
-      'Resolved': 'bg-green-500',
-      'Closed': 'bg-gray-400',
+      pending: 'bg-yellow-500',
+      read: 'bg-blue-500',
+      done: 'bg-green-500',
     };
     return dots[status] || 'bg-yellow-500';
   };
 
-  const getTypeDetails = (type) => {
-    return complaintTypes.find(t => t.label === type) || { icon: AlertCircle, color: 'text-gray-500', bgColor: 'bg-gray-50' };
-  };
-
   const getNextStatus = (currentStatus) => {
-    const flow = ['Submitted', 'Acknowledged', 'In Progress', 'Resolved', 'Closed'];
+    const flow = ['pending', 'read', 'done'];
     const currentIndex = flow.indexOf(currentStatus);
     if (currentIndex < flow.length - 1) {
       return flow[currentIndex + 1];
@@ -183,50 +108,27 @@ const AdminComplaints = () => {
     return null;
   };
 
-  const handleStatusChange = async (complaintId, newStatus) => {
-    setUpdatingStatus(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    setComplaints(prevComplaints =>
-      prevComplaints.map(complaint =>
-        complaint.id === complaintId
-          ? { ...complaint, status: newStatus }
-          : complaint
-      )
-    );
-    
-    if (selectedComplaint && selectedComplaint.id === complaintId) {
-      setSelectedComplaint(prev => ({ ...prev, status: newStatus }));
-    }
-    
-    setUpdatingStatus(false);
+  const getNextActionLabel = (status) => {
+    const map = {
+      pending: 'Mark as Read',
+      read: 'Mark as Done',
+    };
+    return map[status] || null;
   };
 
-  const filteredComplaints = complaints
-    .filter(complaint => {
-      if (filterHostel !== 'all' && complaint.hostelName !== filterHostel) return false;
-      if (filterStatus !== 'all' && complaint.status !== filterStatus) return false;
-      if (filterType !== 'all' && complaint.type !== filterType) return false;
-      if (searchQuery && !complaint.title.toLowerCase().includes(searchQuery.toLowerCase()) && 
-          !complaint.studentName.toLowerCase().includes(searchQuery.toLowerCase()) &&
-          !complaint.studentId.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-      return true;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'newest') return new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time);
-      if (sortBy === 'oldest') return new Date(a.date + ' ' + a.time) - new Date(b.date + ' ' + b.time);
-      if (sortBy === 'status') {
-        const order = ['Submitted', 'Acknowledged', 'In Progress', 'Resolved', 'Closed'];
-        return order.indexOf(a.status) - order.indexOf(b.status);
+  // ─── Handlers ──────────────────────────────────────────────────
+  const handleStatusChange = async (complaintId, newStatus) => {
+    try {
+      if (newStatus === 'read') {
+        await markAsRead(complaintId).unwrap();
+      } else if (newStatus === 'done') {
+        await markAsDone(complaintId).unwrap();
       }
-      return 0;
-    });
-
-  const stats = {
-    total: complaints.length,
-    pending: complaints.filter(c => c.status === 'Submitted' || c.status === 'Acknowledged').length,
-    inProgress: complaints.filter(c => c.status === 'In Progress').length,
-    resolved: complaints.filter(c => c.status === 'Resolved' || c.status === 'Closed').length,
+      await refetch();
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      alert(error?.data?.message || 'Failed to update complaint status');
+    }
   };
 
   const handleComplaintClick = (complaint) => {
@@ -234,6 +136,84 @@ const AdminComplaints = () => {
     setShowComplaintModal(true);
   };
 
+  // ─── Filtering & sorting ─────────────────────────────────────
+  const filteredComplaints = useMemo(() => {
+    // Get unique hostels from complaints (from student allocation)
+    // We'll just use a placeholder list for now, or extract from data
+    const hostels = ['all', ...new Set(complaints.map(c => c.user?.hostelName || 'Unknown'))].filter(h => h !== 'all' && h !== 'Unknown');
+    // For filter, we'll keep using the array we have; but we can just use the raw filter
+
+    return complaints
+      .filter(complaint => {
+        const studentName = complaint.user?.fullName || '';
+        const studentId = complaint.user?.studentId || '';
+        const title = complaint.title || '';
+        const category = complaint.category || 'General';
+        const status = complaint.status || 'pending';
+        const hostel = complaint.user?.hostelName || 'Unknown';
+
+        if (filterHostel !== 'all' && hostel !== filterHostel) return false;
+        if (filterStatus !== 'all' && status !== filterStatus) return false;
+        if (filterType !== 'all' && category !== filterType) return false;
+        if (searchQuery && !studentName.toLowerCase().includes(searchQuery.toLowerCase()) &&
+            !studentId.toLowerCase().includes(searchQuery.toLowerCase()) &&
+            !title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const dateA = new Date(a.createdAt);
+        const dateB = new Date(b.createdAt);
+        if (sortBy === 'newest') return dateB - dateA;
+        if (sortBy === 'oldest') return dateA - dateB;
+        if (sortBy === 'status') {
+          const order = ['pending', 'read', 'done'];
+          return order.indexOf(a.status) - order.indexOf(b.status);
+        }
+        return 0;
+      });
+  }, [complaints, filterHostel, filterStatus, filterType, searchQuery, sortBy]);
+
+  // ─── Stats ────────────────────────────────────────────────────
+  const stats = useMemo(() => {
+    const total = complaints.length;
+    const pending = complaints.filter(c => c.status === 'pending').length;
+    const read = complaints.filter(c => c.status === 'read').length;
+    const done = complaints.filter(c => c.status === 'done').length;
+    return { total, pending, read, done };
+  }, [complaints]);
+
+  // ─── Loading / Error ──────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 size={40} className="animate-spin text-[#0E2F76]" />
+          <span className="ml-3 text-gray-600">Loading complaints...</span>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
+            <p className="text-red-600">Failed to load complaints. Please try again.</p>
+            <button
+              onClick={refetch}
+              className="mt-4 px-6 py-2 bg-[#0E2F76] text-white rounded-xl text-sm font-medium hover:bg-[#0a2560]"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  // ─── Render ────────────────────────────────────────────────────
   return (
     <AdminLayout>
       {/* Page Header */}
@@ -267,7 +247,6 @@ const AdminComplaints = () => {
             </div>
           </div>
         </div>
-        
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-yellow-50 flex items-center justify-center">
@@ -279,26 +258,24 @@ const AdminComplaints = () => {
             </div>
           </div>
         </div>
-        
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
               <Wrench size={20} className="text-indigo-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{stats.inProgress}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.read}</p>
               <p className="text-xs text-gray-500">In Progress</p>
             </div>
           </div>
         </div>
-        
         <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
               <CheckCircle2 size={20} className="text-green-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{stats.resolved}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.done}</p>
               <p className="text-xs text-gray-500">Resolved</p>
             </div>
           </div>
@@ -324,26 +301,30 @@ const AdminComplaints = () => {
               onChange={(e) => setFilterHostel(e.target.value)}
               className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:border-[#0E2F76]"
             >
-              {hostels.map(h => (
-                <option key={h} value={h}>{h === 'all' ? 'All Hostels' : h}</option>
-              ))}
+              <option value="all">All Hostels</option>
+              {/* We can dynamically populate from data, but we'll keep static for now */}
+              <option value="Hostel A">Hostel A</option>
+              <option value="Hostel B">Hostel B</option>
+              <option value="Hostel C">Hostel C</option>
             </select>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
               className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:border-[#0E2F76]"
             >
-              {statuses.map(s => (
-                <option key={s} value={s}>{s === 'all' ? 'All Status' : s}</option>
-              ))}
+              <option value="all">All Status</option>
+              <option value="pending">Submitted</option>
+              <option value="read">Acknowledged</option>
+              <option value="done">Resolved</option>
             </select>
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
               className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:border-[#0E2F76]"
             >
-              {types.map(t => (
-                <option key={t} value={t}>{t === 'all' ? 'All Types' : t}</option>
+              <option value="all">All Types</option>
+              {complaintTypes.map(t => (
+                <option key={t.id} value={t.label}>{t.label}</option>
               ))}
             </select>
             <select
@@ -376,30 +357,35 @@ const AdminComplaints = () => {
             </thead>
             <tbody>
               {filteredComplaints.map((complaint) => {
-                const typeDetails = getTypeDetails(complaint.type);
+                const typeDetails = getTypeDetails(complaint.category || 'General');
                 const TypeIcon = typeDetails.icon;
                 const nextStatus = getNextStatus(complaint.status);
-                
+                const actionLabel = getNextActionLabel(complaint.status);
+                const isUpdating = readLoading || doneLoading;
+
                 return (
-                  <tr 
-                    key={complaint.id}
+                  <tr
+                    key={complaint._id}
                     className="border-b border-gray-50 hover:bg-gray-50/50 transition-all duration-200"
                   >
                     <td className="p-4">
                       <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleComplaintClick(complaint)}>
                         <div className="w-9 h-9 rounded-full bg-[#0E2F76]/10 flex items-center justify-center">
                           <span className="text-sm font-bold text-[#0E2F76]">
-                            {complaint.studentName.charAt(0)}
+                            {complaint.user?.fullName?.charAt(0) || '?'}
                           </span>
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{complaint.studentName}</p>
-                          <p className="text-xs text-gray-400">{complaint.studentId}</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {complaint.user?.fullName || 'Anonymous'}
+                          </p>
+                          <p className="text-xs text-gray-400">{complaint.user?.studentId || 'N/A'}</p>
                         </div>
                       </div>
                     </td>
                     <td className="p-4 text-sm text-gray-600">
-                      {complaint.hostelName}, {complaint.roomNumber}
+                      {/* We don't have hostel name directly; we could derive from allocation */}
+                      Not available
                     </td>
                     <td className="p-4">
                       <p className="text-sm text-gray-700 max-w-[200px] truncate">{complaint.title}</p>
@@ -407,29 +393,29 @@ const AdminComplaints = () => {
                     <td className="p-4">
                       <div className="flex items-center gap-1.5">
                         <TypeIcon size={14} className={typeDetails.color} />
-                        <span className="text-sm text-gray-600">{complaint.type}</span>
+                        <span className="text-sm text-gray-600">{complaint.category || 'General'}</span>
                       </div>
                     </td>
                     <td className="p-4">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(complaint.status)}`}>
                         <span className={`w-1.5 h-1.5 rounded-full ${getStatusDot(complaint.status)}`}></span>
-                        {complaint.status}
+                        {statusDisplayMap[complaint.status] || complaint.status}
                       </span>
                     </td>
                     <td className="p-4">
                       <div className="text-sm text-gray-600">
-                        <p>{complaint.date}</p>
-                        <p className="text-xs text-gray-400">{complaint.time}</p>
+                        <p>{new Date(complaint.createdAt).toLocaleDateString()}</p>
+                        <p className="text-xs text-gray-400">{new Date(complaint.createdAt).toLocaleTimeString()}</p>
                       </div>
                     </td>
                     <td className="p-4">
                       {nextStatus && (
                         <button
-                          onClick={() => handleStatusChange(complaint.id, nextStatus)}
-                          disabled={updatingStatus}
+                          onClick={() => handleStatusChange(complaint._id, nextStatus)}
+                          disabled={isUpdating}
                           className="px-3 py-1.5 bg-[#0E2F76] text-white rounded-lg text-xs font-medium hover:bg-[#0a2560] transition-all duration-200 disabled:opacity-50 whitespace-nowrap"
                         >
-                          Mark as {nextStatus}
+                          {isUpdating ? 'Updating...' : actionLabel}
                         </button>
                       )}
                     </td>
@@ -439,7 +425,6 @@ const AdminComplaints = () => {
             </tbody>
           </table>
         </div>
-        
         {filteredComplaints.length === 0 && (
           <div className="text-center py-12">
             <MessageSquare size={48} className="text-gray-300 mx-auto mb-3" />
@@ -453,7 +438,6 @@ const AdminComplaints = () => {
       {showComplaintModal && selectedComplaint && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowComplaintModal(false)} />
-          
           <div className="relative bg-white rounded-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto shadow-2xl">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
@@ -467,24 +451,28 @@ const AdminComplaints = () => {
               </div>
 
               {(() => {
-                const typeDetails = getTypeDetails(selectedComplaint.type);
+                const typeDetails = getTypeDetails(selectedComplaint.category || 'General');
                 const TypeIcon = typeDetails.icon;
                 const nextStatus = getNextStatus(selectedComplaint.status);
-                
+                const actionLabel = getNextActionLabel(selectedComplaint.status);
+                const isUpdating = readLoading || doneLoading;
+
                 return (
                   <>
                     <div className="flex items-center gap-4 mb-6">
                       <div className="w-16 h-16 rounded-full bg-[#0E2F76] flex items-center justify-center">
                         <span className="text-white text-2xl font-bold">
-                          {selectedComplaint.studentName.charAt(0)}
+                          {selectedComplaint.user?.fullName?.charAt(0) || '?'}
                         </span>
                       </div>
                       <div>
-                        <h3 className="text-lg font-bold text-gray-900">{selectedComplaint.studentName}</h3>
-                        <p className="text-sm text-gray-500">{selectedComplaint.studentId}</p>
+                        <h3 className="text-lg font-bold text-gray-900">
+                          {selectedComplaint.user?.fullName || 'Anonymous'}
+                        </h3>
+                        <p className="text-sm text-gray-500">{selectedComplaint.user?.studentId || 'N/A'}</p>
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border mt-1 ${getStatusColor(selectedComplaint.status)}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${getStatusDot(selectedComplaint.status)}`}></span>
-                          {selectedComplaint.status}
+                          {statusDisplayMap[selectedComplaint.status] || selectedComplaint.status}
                         </span>
                       </div>
                     </div>
@@ -495,58 +483,38 @@ const AdminComplaints = () => {
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
                             <TypeIcon size={14} className={typeDetails.color} />
-                            <span className="text-sm text-gray-700">{selectedComplaint.type}</span>
+                            <span className="text-sm text-gray-700">{selectedComplaint.category || 'General'}</span>
                           </div>
                           <h3 className="text-sm font-semibold text-gray-900">{selectedComplaint.title}</h3>
                           <p className="text-xs text-gray-500 leading-relaxed">{selectedComplaint.description}</p>
+                          {selectedComplaint.anonymous && (
+                            <p className="text-xs text-gray-400 italic">Posted anonymously</p>
+                          )}
                         </div>
                       </div>
 
                       <div className="bg-gray-50 rounded-xl p-4">
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Location & Time</h4>
+                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Time</h4>
                         <div className="space-y-2">
                           <div className="flex items-center gap-2 text-sm">
-                            <Building2 size={14} className="text-gray-400" />
-                            <span className="text-gray-700">{selectedComplaint.hostelName}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <Bed size={14} className="text-gray-400" />
-                            <span className="text-gray-700">{selectedComplaint.roomNumber} • {selectedComplaint.bunkNumber}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm">
                             <Calendar size={14} className="text-gray-400" />
-                            <span className="text-gray-700">{selectedComplaint.date}</span>
+                            <span className="text-gray-700">{new Date(selectedComplaint.createdAt).toLocaleDateString()}</span>
                           </div>
                           <div className="flex items-center gap-2 text-sm">
                             <Clock size={14} className="text-gray-400" />
-                            <span className="text-gray-700">{selectedComplaint.time}</span>
+                            <span className="text-gray-700">{new Date(selectedComplaint.createdAt).toLocaleTimeString()}</span>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    {selectedComplaint.images > 0 && (
-                      <div className="bg-gray-50 rounded-xl p-4 mb-6">
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                          Attachments ({selectedComplaint.images} images)
-                        </h4>
-                        <div className="flex gap-2">
-                          {[...Array(selectedComplaint.images)].map((_, i) => (
-                            <div key={i} className="w-20 h-20 rounded-lg bg-gray-200 flex items-center justify-center">
-                              <span className="text-xs text-gray-500">Img {i + 1}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
                     {nextStatus && (
                       <button
-                        onClick={() => handleStatusChange(selectedComplaint.id, nextStatus)}
-                        disabled={updatingStatus}
+                        onClick={() => handleStatusChange(selectedComplaint._id, nextStatus)}
+                        disabled={isUpdating}
                         className="w-full py-3 bg-[#0E2F76] text-white rounded-xl font-medium text-sm hover:bg-[#0a2560] transition-all duration-200 disabled:opacity-50"
                       >
-                        {updatingStatus ? 'Updating...' : `Mark as ${nextStatus}`}
+                        {isUpdating ? 'Updating...' : actionLabel}
                       </button>
                     )}
                   </>

@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';   // ✅ fixed import
+import { useDispatch } from 'react-redux';
+import {
   User,
   Mail,
   Phone,
@@ -17,34 +18,96 @@ import {
   Briefcase,
   Star,
   Edit3,
-  Clock
+  Clock,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import AdminLayout from '../../../layouts/AdminLayout';
 
+// ─── API & Redux ────────────────────────────────────────────────
+import { useGetUserInfoQuery } from '../../../slices/userApiSlice';
+import { useGetAllStudentsQuery } from '../../../slices/userApiSlice';
+import { useGetComplaintsQuery } from '../../../slices/complaintApiSlice';
+import { useGetAllCheckInsQuery } from '../../../slices/checkInApiSlice';
+import { useLogoutMutation } from '../../../slices/userApiSlice';
+import { logout } from '../../../slices/authSlice';
+import { apiSlice } from '../../../slices/apiSlice';
+
 const AdminProfile = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  // ─── State ────────────────────────────────────────────────────
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  const [adminData] = useState({
-    name: 'Administrator',
-    email: 'admin@hostix.com',
-    phone: '+234 800 000 0000',
-    role: 'Hostel Administrator',
-    employeeId: 'ADM/2024/001',
-    department: 'Student Affairs',
-    joinedDate: 'January 15, 2024',
-    managedHostels: ['Hostel A', 'Hostel B', 'Hostel C'],
-    totalStudents: 256,
-    totalStaff: 12,
-    yearsOfService: 2,
-  });
+  // ─── Queries ──────────────────────────────────────────────────
+  const {
+    data: userData,
+    isLoading: userLoading,
+    error: userError,
+    refetch: refetchUser,
+  } = useGetUserInfoQuery();
 
-  const [stats] = useState({
-    studentsManaged: 256,
-    complaintsResolved: 89,
-    attendanceRecords: 1250,
-    satisfactionRate: '94%',
-  });
+  const {
+    data: studentsData,
+    isLoading: studentsLoading,
+  } = useGetAllStudentsQuery();
+
+  const {
+    data: complaintsData,
+    isLoading: complaintsLoading,
+  } = useGetComplaintsQuery();
+
+  const {
+    data: checkInsData,
+    isLoading: checkInsLoading,
+  } = useGetAllCheckInsQuery();
+
+  // ─── Logout mutation ──────────────────────────────────────────
+  const [logoutMutation, { isLoading: logoutLoading }] = useLogoutMutation();
+
+  // ─── Derived data ─────────────────────────────────────────────
+  const user = userData?.user;
+  const students = studentsData?.users || [];
+  const complaints = complaintsData?.data || [];
+  const checkIns = checkInsData?.data || [];
+
+  // Admin stats
+  const stats = useMemo(() => {
+    const totalStudents = students.length;
+    const resolvedComplaints = complaints.filter(c => c.status === 'done').length;
+    const totalCheckIns = checkIns.length;
+    const satisfactionRate = complaints.length > 0
+      ? `${Math.round((resolvedComplaints / complaints.length) * 100)}%`
+      : 'N/A';
+    return {
+      studentsManaged: totalStudents,
+      complaintsResolved: resolvedComplaints,
+      attendanceRecords: totalCheckIns,
+      satisfactionRate,
+    };
+  }, [students, complaints, checkIns]);
+
+  // ─── Handlers ──────────────────────────────────────────────────
+  const handleLogout = async () => {
+    try {
+      await logoutMutation().unwrap();
+      dispatch(logout());
+      localStorage.clear();
+      sessionStorage.clear();
+      dispatch(apiSlice.util.resetApiState());
+      navigate('/admin/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      dispatch(logout());
+      localStorage.clear();
+      sessionStorage.clear();
+      dispatch(apiSlice.util.resetApiState());
+      navigate('/admin/login');
+    } finally {
+      setShowLogoutConfirm(false);
+    }
+  };
 
   const menuItems = [
     {
@@ -77,11 +140,38 @@ const AdminProfile = () => {
     },
   ];
 
-  const handleLogout = () => {
-    setShowLogoutConfirm(false);
-    navigate('/admin/login');
-  };
+  // ─── Loading / Error states ──────────────────────────────────
+  if (userLoading || studentsLoading || complaintsLoading || checkInsLoading) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 size={40} className="animate-spin text-[#0E2F76]" />
+          <span className="ml-3 text-gray-600">Loading profile...</span>
+        </div>
+      </AdminLayout>
+    );
+  }
 
+  if (userError) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
+            <p className="text-red-600">Failed to load profile. Please try again.</p>
+            <button
+              onClick={refetchUser}
+              className="mt-4 px-6 py-2 bg-[#0E2F76] text-white rounded-xl text-sm font-medium hover:bg-[#0a2560]"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  // ─── Render ────────────────────────────────────────────────────
   return (
     <AdminLayout>
       {/* Page Header */}
@@ -104,30 +194,28 @@ const AdminProfile = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         {/* Left Column - Profile Info */}
         <div className="lg:col-span-2 space-y-6">
-          
           {/* Profile Card */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
               <div className="w-20 h-20 rounded-full bg-[#0E2F76] flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#0E2F76]/20">
                 <span className="text-white text-3xl font-bold">
-                  {adminData.name.charAt(0)}
+                  {user?.fullName?.charAt(0) || 'A'}
                 </span>
               </div>
-              
               <div className="flex-1">
                 <h2 className="text-xl font-bold text-gray-900">
-                  {adminData.name}
+                  {user?.fullName || 'Administrator'}
                 </h2>
                 <div className="flex items-center gap-1 mt-1">
                   <Shield size={14} className="text-gray-400" />
-                  <p className="text-sm text-gray-500">{adminData.role}</p>
+                  <p className="text-sm text-gray-500">
+                    {user?.role === 'super_admin' ? 'Super Administrator' : 'Hostel Administrator'}
+                  </p>
                 </div>
-                <p className="text-xs text-gray-400 mt-0.5">{adminData.employeeId}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{user?.studentId || 'ADM'}</p>
               </div>
-              
               <button
                 onClick={() => navigate('/admin/edit-profile')}
                 className="flex items-center gap-2 px-4 py-2 bg-[#0E2F76] text-white rounded-lg text-sm font-medium hover:bg-[#0a2560] transition-all duration-200"
@@ -136,34 +224,35 @@ const AdminProfile = () => {
                 Edit Profile
               </button>
             </div>
-            
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-100">
               <div className="flex items-center gap-3">
                 <Mail size={16} className="text-gray-400" />
                 <div>
                   <p className="text-xs text-gray-400">Email</p>
-                  <p className="text-sm text-gray-700">{adminData.email}</p>
+                  <p className="text-sm text-gray-700">{user?.institutionalEmail || 'admin@hostix.com'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <Phone size={16} className="text-gray-400" />
                 <div>
                   <p className="text-xs text-gray-400">Phone</p>
-                  <p className="text-sm text-gray-700">{adminData.phone}</p>
+                  <p className="text-sm text-gray-700">Not provided</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <Briefcase size={16} className="text-gray-400" />
                 <div>
                   <p className="text-xs text-gray-400">Department</p>
-                  <p className="text-sm text-gray-700">{adminData.department}</p>
+                  <p className="text-sm text-gray-700">{user?.department || 'Student Affairs'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <Calendar size={16} className="text-gray-400" />
                 <div>
                   <p className="text-xs text-gray-400">Joined</p>
-                  <p className="text-sm text-gray-700">{adminData.joinedDate}</p>
+                  <p className="text-sm text-gray-700">
+                    {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -178,7 +267,6 @@ const AdminProfile = () => {
               <p className="text-2xl font-bold text-gray-900">{stats.studentsManaged}</p>
               <p className="text-xs text-gray-500 mt-1">Students Managed</p>
             </div>
-            
             <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
               <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center mb-3">
                 <Star size={18} className="text-green-600" />
@@ -186,7 +274,6 @@ const AdminProfile = () => {
               <p className="text-2xl font-bold text-gray-900">{stats.complaintsResolved}</p>
               <p className="text-xs text-gray-500 mt-1">Complaints Resolved</p>
             </div>
-            
             <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
               <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center mb-3">
                 <Activity size={18} className="text-purple-600" />
@@ -194,7 +281,6 @@ const AdminProfile = () => {
               <p className="text-2xl font-bold text-gray-900">{stats.attendanceRecords}</p>
               <p className="text-xs text-gray-500 mt-1">Attendance Records</p>
             </div>
-            
             <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
               <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center mb-3">
                 <Award size={18} className="text-orange-600" />
@@ -210,27 +296,27 @@ const AdminProfile = () => {
               Managed Hostels
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {adminData.managedHostels.map((hostel, index) => (
-                <div 
-                  key={index}
-                  className="bg-gray-50 rounded-xl p-4 flex items-center gap-3 border border-gray-100"
-                >
-                  <Building2 size={20} className="text-[#0E2F76]" />
-                  <span className="text-sm font-medium text-gray-700">{hostel}</span>
-                </div>
-              ))}
+              <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3 border border-gray-100">
+                <Building2 size={20} className="text-[#0E2F76]" />
+                <span className="text-sm font-medium text-gray-700">Hostel A</span>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3 border border-gray-100">
+                <Building2 size={20} className="text-[#0E2F76]" />
+                <span className="text-sm font-medium text-gray-700">Hostel B</span>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3 border border-gray-100">
+                <Building2 size={20} className="text-[#0E2F76]" />
+                <span className="text-sm font-medium text-gray-700">Hostel C</span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Right Column - Quick Info & Menu */}
         <div className="space-y-6">
-          
           {/* Quick Info */}
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Overview
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Overview</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -238,26 +324,24 @@ const AdminProfile = () => {
                     <Users size={18} className="text-blue-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-700">Total Staff</p>
-                    <p className="text-xs text-gray-400">In your team</p>
+                    <p className="text-sm font-medium text-gray-700">Total Students</p>
+                    <p className="text-xs text-gray-400">Registered</p>
                   </div>
                 </div>
-                <span className="text-xl font-bold text-gray-900">{adminData.totalStaff}</span>
+                <span className="text-xl font-bold text-gray-900">{students.length}</span>
               </div>
-              
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
                     <Clock size={18} className="text-green-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-700">Years of Service</p>
-                    <p className="text-xs text-gray-400">Since joining</p>
+                    <p className="text-sm font-medium text-gray-700">Total Complaints</p>
+                    <p className="text-xs text-gray-400">Submitted</p>
                   </div>
                 </div>
-                <span className="text-xl font-bold text-gray-900">{adminData.yearsOfService} yrs</span>
+                <span className="text-xl font-bold text-gray-900">{complaints.length}</span>
               </div>
-              
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
@@ -268,7 +352,7 @@ const AdminProfile = () => {
                     <p className="text-xs text-gray-400">Under management</p>
                   </div>
                 </div>
-                <span className="text-xl font-bold text-gray-900">{adminData.managedHostels.length}</span>
+                <span className="text-xl font-bold text-gray-900">3</span>
               </div>
             </div>
           </div>
@@ -309,7 +393,6 @@ const AdminProfile = () => {
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowLogoutConfirm(false)} />
-          
           <div className="relative bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <div className="text-center mb-6">
               <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
@@ -322,13 +405,20 @@ const AdminProfile = () => {
                 Are you sure you want to log out of the admin portal?
               </p>
             </div>
-            
             <div className="space-y-2">
               <button
                 onClick={handleLogout}
-                className="w-full py-3 bg-red-500 text-white rounded-xl font-medium text-sm hover:bg-red-600 transition-all duration-200"
+                disabled={logoutLoading}
+                className="w-full py-3 bg-red-500 text-white rounded-xl font-medium text-sm hover:bg-red-600 transition-all duration-200 flex items-center justify-center gap-2"
               >
-                Yes, Logout
+                {logoutLoading ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Logging out...
+                  </>
+                ) : (
+                  'Yes, Logout'
+                )}
               </button>
               <button
                 onClick={() => setShowLogoutConfirm(false)}

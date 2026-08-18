@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
+import {
   Search,
   Filter,
   Users,
@@ -17,151 +17,165 @@ import {
   MapPin,
   Download,
   MoreHorizontal,
-  ArrowUpDown
+  ArrowUpDown,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import AdminLayout from '../../../layouts/AdminLayout';
 
+// ─── API Hooks ──────────────────────────────────────────────────
+import { useGetAllStudentsQuery } from '../../../slices/userApiSlice';
+import { useGetAllCheckInsQuery } from '../../../slices/checkInApiSlice';
+import { useGetComplaintsQuery } from '../../../slices/complaintApiSlice';
+
 const AdminStudents = () => {
   const navigate = useNavigate();
+
+  // ─── Queries ──────────────────────────────────────────────────
+  const {
+    data: studentsData,
+    isLoading: studentsLoading,
+    error: studentsError,
+    refetch: refetchStudents,
+  } = useGetAllStudentsQuery();
+
+  const {
+    data: checkInsData,
+    isLoading: checkInsLoading,
+    error: checkInsError,
+  } = useGetAllCheckInsQuery();
+
+  const {
+    data: complaintsData,
+    isLoading: complaintsLoading,
+    error: complaintsError,
+  } = useGetComplaintsQuery();
+
+  // ─── State ────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [filterHostel, setFilterHostel] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterLevel, setFilterLevel] = useState('all');
   const [sortBy, setSortBy] = useState('name');
-  const [showFilters, setShowFilters] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showStudentModal, setShowStudentModal] = useState(false);
 
-  const [students] = useState([
-    {
-      id: 'STU/2024/001',
-      name: 'John Doe',
-      email: 'johndoe@school.edu',
-      phone: '+234 801 234 5678',
-      department: 'Computer Science',
-      level: '200L',
-      gender: 'Male',
-      hostelName: 'Hostel A',
-      roomNumber: 'Room 3',
-      bunkNumber: 'Bunk 2',
-      status: 'checked-in',
-      lastCheckIn: 'Jun 18, 2026 - 08:30 AM',
-      lastCheckOut: 'Jun 17, 2026 - 10:15 PM',
-      totalCheckIns: 45,
-      totalComplaints: 5,
-    },
-    {
-      id: 'STU/2024/002',
-      name: 'Jane Smith',
-      email: 'janesmith@school.edu',
-      phone: '+234 802 345 6789',
-      department: 'Electrical Engineering',
-      level: '300L',
-      gender: 'Female',
-      hostelName: 'Hostel B',
-      roomNumber: 'Room 7',
-      bunkNumber: 'Bunk 4',
-      status: 'checked-out',
-      lastCheckIn: 'Jun 17, 2026 - 06:00 PM',
-      lastCheckOut: 'Jun 18, 2026 - 07:45 AM',
-      totalCheckIns: 32,
-      totalComplaints: 2,
-    },
-    {
-      id: 'STU/2024/003',
-      name: 'Mike Johnson',
-      email: 'mikejohnson@school.edu',
-      phone: '+234 803 456 7890',
-      department: 'Mechanical Engineering',
-      level: '400L',
-      gender: 'Male',
-      hostelName: 'Hostel A',
-      roomNumber: 'Room 2',
-      bunkNumber: 'Bunk 1',
-      status: 'checked-in',
-      lastCheckIn: 'Jun 18, 2026 - 09:15 AM',
-      lastCheckOut: 'Jun 17, 2026 - 08:30 PM',
-      totalCheckIns: 67,
-      totalComplaints: 8,
-    },
-    {
-      id: 'STU/2024/004',
-      name: 'Sarah Williams',
-      email: 'sarahwilliams@school.edu',
-      phone: '+234 804 567 8901',
-      department: 'Civil Engineering',
-      level: '200L',
-      gender: 'Female',
-      hostelName: 'Hostel C',
-      roomNumber: 'Room 5',
-      bunkNumber: 'Bunk 3',
-      status: 'checked-in',
-      lastCheckIn: 'Jun 18, 2026 - 07:00 AM',
-      lastCheckOut: 'Jun 17, 2026 - 06:00 PM',
-      totalCheckIns: 28,
-      totalComplaints: 1,
-    },
-    {
-      id: 'STU/2024/005',
-      name: 'David Brown',
-      email: 'davidbrown@school.edu',
-      phone: '+234 805 678 9012',
-      department: 'Computer Science',
-      level: '100L',
-      gender: 'Male',
-      hostelName: 'Hostel A',
-      roomNumber: 'Room 1',
-      bunkNumber: 'Bunk 6',
-      status: 'checked-out',
-      lastCheckIn: 'Jun 17, 2026 - 10:00 PM',
-      lastCheckOut: 'Jun 18, 2026 - 06:30 AM',
-      totalCheckIns: 15,
-      totalComplaints: 0,
-    },
-    {
-      id: 'STU/2024/006',
-      name: 'Emily Davis',
-      email: 'emilydavis@school.edu',
-      phone: '+234 806 789 0123',
-      department: 'Biochemistry',
-      level: '300L',
-      gender: 'Female',
-      hostelName: 'Hostel B',
-      roomNumber: 'Room 8',
-      bunkNumber: 'Bunk 2',
-      status: 'checked-in',
-      lastCheckIn: 'Jun 18, 2026 - 08:00 AM',
-      lastCheckOut: 'Jun 17, 2026 - 09:00 PM',
-      totalCheckIns: 41,
-      totalComplaints: 3,
-    },
-  ]);
+  // ─── Derived Data ─────────────────────────────────────────────
+  const students = useMemo(() => {
+    if (!studentsData?.users) return [];
+    return studentsData.users;
+  }, [studentsData]);
 
-  const hostels = ['all', 'Hostel A', 'Hostel B', 'Hostel C'];
-  const levels = ['all', '100L', '200L', '300L', '400L'];
-  const statuses = ['all', 'checked-in', 'checked-out'];
+  const checkIns = useMemo(() => {
+    if (!checkInsData?.data) return [];
+    return checkInsData.data;
+  }, [checkInsData]);
 
-  const filteredStudents = students
-    .filter(student => {
-      if (filterHostel !== 'all' && student.hostelName !== filterHostel) return false;
-      if (filterStatus !== 'all' && student.status !== filterStatus) return false;
-      if (filterLevel !== 'all' && student.level !== filterLevel) return false;
-      if (searchQuery && !student.name.toLowerCase().includes(searchQuery.toLowerCase()) && 
-          !student.id.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-      return true;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'level') return a.level.localeCompare(b.level);
-      if (sortBy === 'hostel') return a.hostelName.localeCompare(b.hostelName);
-      return 0;
+  const complaints = useMemo(() => {
+    if (!complaintsData?.data) return [];
+    return complaintsData.data;
+  }, [complaintsData]);
+
+  // ─── Compute enriched student data ───────────────────────────
+  const enrichedStudents = useMemo(() => {
+    // Build a map of studentId -> check-in records
+    const studentCheckIns = new Map();
+    checkIns.forEach(record => {
+      const userId = record.user?._id || record.user;
+      if (!userId) return;
+      if (!studentCheckIns.has(userId)) {
+        studentCheckIns.set(userId, []);
+      }
+      studentCheckIns.get(userId).push(record);
     });
 
+    // Build a map of studentId -> complaint count
+    const studentComplaints = new Map();
+    complaints.forEach(comp => {
+      const userId = comp.user?._id || comp.user;
+      if (!userId) return;
+      studentComplaints.set(userId, (studentComplaints.get(userId) || 0) + 1);
+    });
+
+    // Enrich each student
+    return students.map(student => {
+      const records = studentCheckIns.get(student._id) || [];
+      // Sort by checkoutTime descending
+      records.sort((a, b) => new Date(b.checkoutTime) - new Date(a.checkoutTime));
+      const latest = records.length > 0 ? records[0] : null;
+      const totalCheckIns = records.length;
+
+      // Determine status: if latest has no returnTime => checked-in, else checked-out
+      let status = 'checked-out';
+      let lastCheckIn = 'N/A';
+      let lastCheckOut = 'N/A';
+      if (latest) {
+        if (!latest.returnTime) {
+          status = 'checked-in';
+          lastCheckIn = new Date(latest.checkoutTime).toLocaleString();
+          // find previous check-out? Not easily; we can leave as N/A or use latest checkout time as last check-out?
+          // For last check-out, we can look for a previous record with returnTime.
+          const previousWithReturn = records.find(r => r.returnTime && r._id !== latest._id);
+          lastCheckOut = previousWithReturn ? new Date(previousWithReturn.returnTime).toLocaleString() : 'N/A';
+        } else {
+          // checked-out
+          status = 'checked-out';
+          lastCheckOut = new Date(latest.returnTime).toLocaleString();
+          // lastCheckIn would be the checkout time of this record? Actually it's the last time they checked in.
+          // We'll use the checkout time of the latest record.
+          lastCheckIn = new Date(latest.checkoutTime).toLocaleString();
+        }
+      }
+
+      return {
+        ...student,
+        status,
+        lastCheckIn,
+        lastCheckOut,
+        totalCheckIns,
+        totalComplaints: studentComplaints.get(student._id) || 0,
+        // If allocatedBunk is populated, we can get hostel/room/bunk
+        hostelName: student.allocatedBunk?.roomNumber ? `Room ${student.allocatedBunk.roomNumber}` : 'Not Allocated',
+        roomNumber: student.allocatedBunk?.roomNumber || 'N/A',
+        bunkNumber: student.allocatedBunk?.bunkNumber || 'N/A',
+        // We don't have hostel name from bunk, but we can assign a default or fetch from a separate endpoint if needed.
+        // For now, we'll set a placeholder.
+        hostelDisplayName: student.allocatedBunk ? `Room ${student.allocatedBunk.roomNumber}` : 'Not Allocated',
+        level: `${student.yearOfStudy || 0}00L`, // approximate
+      };
+    });
+  }, [students, checkIns, complaints]);
+
+  // ─── Filtering and Sorting ────────────────────────────────────
+  const filteredStudents = useMemo(() => {
+    return enrichedStudents
+      .filter(student => {
+        if (filterHostel !== 'all' && student.hostelDisplayName !== filterHostel) return false;
+        if (filterStatus !== 'all' && student.status !== filterStatus) return false;
+        if (filterLevel !== 'all' && student.level !== filterLevel) return false;
+        if (searchQuery && !student.fullName.toLowerCase().includes(searchQuery.toLowerCase()) &&
+            !student.studentId.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'name') return a.fullName.localeCompare(b.fullName);
+        if (sortBy === 'level') return a.level.localeCompare(b.level);
+        if (sortBy === 'hostel') return a.hostelDisplayName.localeCompare(b.hostelDisplayName);
+        return 0;
+      });
+  }, [enrichedStudents, filterHostel, filterStatus, filterLevel, searchQuery, sortBy]);
+
+  // ─── Statistics ───────────────────────────────────────────────
+  const checkedInCount = enrichedStudents.filter(s => s.status === 'checked-in').length;
+  const checkedOutCount = enrichedStudents.filter(s => s.status === 'checked-out').length;
+
+  // ─── Handlers ──────────────────────────────────────────────────
   const handleStudentClick = (student) => {
     setSelectedStudent(student);
     setShowStudentModal(true);
   };
 
+  // ─── UI Helpers ──────────────────────────────────────────────
   const getStatusBadge = (status) => {
     if (status === 'checked-in') {
       return {
@@ -177,9 +191,45 @@ const AdminStudents = () => {
     };
   };
 
-  const checkedInCount = students.filter(s => s.status === 'checked-in').length;
-  const checkedOutCount = students.filter(s => s.status === 'checked-out').length;
+  // ─── Unique filter options ────────────────────────────────────
+  const hostels = ['all', ...new Set(enrichedStudents.map(s => s.hostelDisplayName).filter(h => h && h !== 'Not Allocated'))];
+  const levels = ['all', ...new Set(enrichedStudents.map(s => s.level).filter(l => l && l !== '0L'))];
+  const statuses = ['all', 'checked-in', 'checked-out'];
 
+  // ─── Loading / Error ──────────────────────────────────────────
+  const isLoading = studentsLoading || checkInsLoading || complaintsLoading;
+
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 size={40} className="animate-spin text-[#0E2F76]" />
+          <span className="ml-3 text-gray-600">Loading students...</span>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (studentsError || checkInsError || complaintsError) {
+    return (
+      <AdminLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
+            <p className="text-red-600">Failed to load data. Please try again.</p>
+            <button
+              onClick={refetchStudents}
+              className="mt-4 px-6 py-2 bg-[#0E2F76] text-white rounded-xl text-sm font-medium hover:bg-[#0a2560]"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  // ─── Render ────────────────────────────────────────────────────
   return (
     <AdminLayout>
       {/* Page Header */}
@@ -188,7 +238,7 @@ const AdminStudents = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Students</h1>
             <p className="text-sm text-gray-500 mt-1">
-              {students.length} registered students • {checkedInCount} checked in • {checkedOutCount} checked out
+              {enrichedStudents.length} registered students • {checkedInCount} checked in • {checkedOutCount} checked out
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -208,7 +258,7 @@ const AdminStudents = () => {
               <Users size={20} className="text-blue-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">{students.length}</p>
+              <p className="text-2xl font-bold text-gray-900">{enrichedStudents.length}</p>
               <p className="text-xs text-gray-500">Total Students</p>
             </div>
           </div>
@@ -305,7 +355,7 @@ const AdminStudents = () => {
                 const statusInfo = getStatusBadge(student.status);
                 return (
                   <tr 
-                    key={student.id}
+                    key={student._id}
                     onClick={() => handleStudentClick(student)}
                     className="border-b border-gray-50 hover:bg-gray-50/50 transition-all duration-200 cursor-pointer"
                   >
@@ -313,23 +363,23 @@ const AdminStudents = () => {
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-[#0E2F76]/10 flex items-center justify-center">
                           <span className="text-sm font-bold text-[#0E2F76]">
-                            {student.name.charAt(0)}
+                            {student.fullName?.charAt(0) || '?'}
                           </span>
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{student.name}</p>
-                          <p className="text-xs text-gray-400">{student.email}</p>
+                          <p className="text-sm font-medium text-gray-900">{student.fullName}</p>
+                          <p className="text-xs text-gray-400">{student.institutionalEmail}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="p-4 text-sm text-gray-600">{student.id}</td>
+                    <td className="p-4 text-sm text-gray-600">{student.studentId}</td>
                     <td className="p-4 text-sm text-gray-600">{student.department}</td>
                     <td className="p-4">
                       <span className="px-2.5 py-1 bg-gray-100 rounded-full text-xs font-medium text-gray-700">
                         {student.level}
                       </span>
                     </td>
-                    <td className="p-4 text-sm text-gray-600">{student.hostelName}</td>
+                    <td className="p-4 text-sm text-gray-600">{student.hostelDisplayName}</td>
                     <td className="p-4 text-sm text-gray-600">{student.roomNumber}</td>
                     <td className="p-4">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${statusInfo.color}`}>
@@ -378,12 +428,12 @@ const AdminStudents = () => {
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-16 h-16 rounded-full bg-[#0E2F76] flex items-center justify-center">
                   <span className="text-white text-2xl font-bold">
-                    {selectedStudent.name.charAt(0)}
+                    {selectedStudent.fullName?.charAt(0) || '?'}
                   </span>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">{selectedStudent.name}</h3>
-                  <p className="text-sm text-gray-500">{selectedStudent.id}</p>
+                  <h3 className="text-lg font-bold text-gray-900">{selectedStudent.fullName}</h3>
+                  <p className="text-sm text-gray-500">{selectedStudent.studentId}</p>
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border mt-1 ${getStatusBadge(selectedStudent.status).color}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${getStatusBadge(selectedStudent.status).dot}`}></span>
                     {getStatusBadge(selectedStudent.status).text}
@@ -397,11 +447,11 @@ const AdminStudents = () => {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm">
                       <Mail size={14} className="text-gray-400" />
-                      <span className="text-gray-700">{selectedStudent.email}</span>
+                      <span className="text-gray-700">{selectedStudent.institutionalEmail}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <Phone size={14} className="text-gray-400" />
-                      <span className="text-gray-700">{selectedStudent.phone}</span>
+                      <span className="text-gray-700">Not provided</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <GraduationCap size={14} className="text-gray-400" />
@@ -415,7 +465,7 @@ const AdminStudents = () => {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm">
                       <Building2 size={14} className="text-gray-400" />
-                      <span className="text-gray-700">{selectedStudent.hostelName}</span>
+                      <span className="text-gray-700">{selectedStudent.hostelDisplayName}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <Bed size={14} className="text-gray-400" />
