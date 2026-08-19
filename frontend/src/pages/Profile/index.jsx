@@ -241,7 +241,9 @@ const Profile = () => {
                     <Home size={18} className="text-[#0E2F76]" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-[#0E2F76]">Room {allocatedBunk.roomNumber}</p>
+                    <p className="text-sm font-medium text-[#0E2F76]">
+                      Room {allocatedBunk.roomId?.roomNumber || allocatedBunk.roomNumber}
+                    </p>
                     <p className="text-xs text-[#0E2F76]/50">Room</p>
                   </div>
                 </div>
@@ -384,7 +386,9 @@ const Profile = () => {
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Room</p>
-                      <p className="text-lg font-bold text-[#0E2F76]">Room {allocatedBunk.roomNumber}</p>
+                      <p className="text-lg font-bold text-[#0E2F76]">
+                        Room {allocatedBunk.roomId?.roomNumber || allocatedBunk.roomNumber}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
