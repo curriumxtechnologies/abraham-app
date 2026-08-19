@@ -30,7 +30,7 @@ import { useGetAllStudentsQuery } from '../../../slices/userApiSlice';
 
 const AdminAttendance = () => {
   const navigate = useNavigate();
-  const printRef = useRef(null);
+  const printRef = useRef(null); // Ref for the hidden printable QR container
 
   // ─── State ────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,7 +60,6 @@ const AdminAttendance = () => {
   const attendanceRecords = useMemo(() => {
     if (!checkInsData?.data || !studentsData?.users) return [];
 
-    // Map student ID -> student object for quick lookup
     const studentMap = {};
     studentsData.users.forEach((s) => {
       studentMap[s._id] = s;
@@ -78,7 +77,7 @@ const AdminAttendance = () => {
         status: record.returnTime ? 'check-out' : 'check-in',
         date: new Date(record.checkoutTime).toLocaleDateString(),
         time: new Date(record.checkoutTime).toLocaleTimeString(),
-        location: 'Main Entrance', // placeholder
+        location: 'Main Entrance',
         returnTime: record.returnTime,
       };
     });
@@ -92,7 +91,6 @@ const AdminAttendance = () => {
     );
     const checkIns = todayRecords.filter((r) => r.status === 'check-in').length;
     const checkOuts = todayRecords.filter((r) => r.status === 'check-out').length;
-    // Currently inside: students whose latest record is check-in
     const latestPerStudent = {};
     attendanceRecords.forEach((r) => {
       const key = r.studentId;
@@ -144,35 +142,57 @@ const AdminAttendance = () => {
     setShowStudentModal(true);
   };
 
+  // ─── Improved Print Handler ──────────────────────────────────
   const handlePrintQR = () => {
-    if (printRef.current) {
-      const printWindow = window.open('', '_blank', 'width=400,height=600');
-      if (printWindow) {
-        const content = printRef.current.innerHTML;
-        printWindow.document.write(`
-          <html>
-            <head>
-              <title>Entrance QR Code</title>
-              <style>
-                body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: white; }
-                .qr-container { text-align: center; padding: 20px; }
-                .qr-container h2 { margin-bottom: 10px; color: #1a1a2e; }
-                .qr-container p { color: #666; margin: 5px 0; }
-                .qr-code { display: flex; justify-content: center; margin: 20px 0; }
-                .qr-footer { margin-top: 30px; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
-              </style>
-            </head>
-            <body>
-              ${content}
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-        printWindow.focus();
-        printWindow.print();
+    if (!printRef.current) return;
+
+    // Get the inner HTML of the hidden printable container
+    const content = printRef.current.innerHTML;
+
+    // Open a new window with the QR code content
+    const printWindow = window.open('', '_blank', 'width=400,height=600,menubar=no,toolbar=no,location=no,status=no,scrollbars=no');
+    if (!printWindow) {
+      alert('Please allow popups to print the QR code.');
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Entrance QR Code</title>
+          <style>
+            body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: white; }
+            .qr-container { text-align: center; padding: 20px; }
+            .qr-container h2 { margin-bottom: 10px; color: #1a1a2e; }
+            .qr-container p { color: #666; margin: 5px 0; }
+            .qr-code { display: flex; justify-content: center; margin: 20px 0; }
+            .qr-footer { margin-top: 30px; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
+          </style>
+        </head>
+        <body>
+          ${content}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+
+    // Wait for the window to load and then print
+    printWindow.onload = () => {
+      printWindow.print();
+      // Close the window after print dialog closes (or after a short delay)
+      printWindow.onafterprint = () => {
+        printWindow.close();
+      };
+    };
+
+    // Fallback: if onafterprint doesn't fire, close after 5 seconds
+    setTimeout(() => {
+      if (!printWindow.closed) {
         printWindow.close();
       }
-    }
+    }, 5000);
   };
 
   const handleCopyToken = async (token) => {
@@ -277,10 +297,6 @@ const AdminAttendance = () => {
               {attendanceRecords.length} total records • {todayStats.currentlyInside} inside • {todayStats.currentlyOutside} outside
             </p>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all duration-200">
-            <Download size={16} />
-            Export Report
-          </button>
         </div>
       </div>
 
@@ -455,7 +471,7 @@ const AdminAttendance = () => {
         )}
       </div>
 
-      {/* ─── QR Code Modal (central) ────────────────────────────── */}
+      {/* ─── QR Code Modal ──────────────────────────────────────── */}
       {showQRModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowQRModal(false)} />
@@ -471,7 +487,8 @@ const AdminAttendance = () => {
                 </button>
               </div>
 
-              <div ref={printRef} className="text-center">
+              {/* Display QR code in modal - same content as printable */}
+              <div className="text-center">
                 <div className="flex justify-center my-4">
                   <QRCode value={entranceToken} size={200} bgColor="#ffffff" fgColor="#0E2F76" />
                 </div>
@@ -501,6 +518,18 @@ const AdminAttendance = () => {
           </div>
         </div>
       )}
+
+      {/* ─── Hidden Printable QR Container ──────────────────────── */}
+      <div ref={printRef} style={{ display: 'none' }}>
+        <div className="qr-container">
+          <h2>Entrance QR Code</h2>
+          <p>Scan this code at the entrance to check in/out</p>
+          <div className="qr-code">
+            <QRCode value={entranceToken} size={200} bgColor="#ffffff" fgColor="#0E2F76" />
+          </div>
+          <p className="qr-footer">Token: {entranceToken}</p>
+        </div>
+      </div>
 
       {/* ─── Student Detail Modal ───────────────────────────────── */}
       {showStudentModal && selectedRecord && (
