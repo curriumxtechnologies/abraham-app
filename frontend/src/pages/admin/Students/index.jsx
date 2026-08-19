@@ -61,24 +61,25 @@ const AdminStudents = () => {
   const [showStudentModal, setShowStudentModal] = useState(false);
 
   // ─── Derived Data ─────────────────────────────────────────────
-  const students = useMemo(() => {
-    if (!studentsData?.users) return [];
-    return studentsData.users;
-  }, [studentsData]);
+  const students = useMemo(() => studentsData?.users || [], [studentsData]);
+  const checkIns = useMemo(() => checkInsData?.data || [], [checkInsData]);
+  const complaints = useMemo(() => complaintsData?.data || [], [complaintsData]);
 
-  const checkIns = useMemo(() => {
-    if (!checkInsData?.data) return [];
-    return checkInsData.data;
-  }, [checkInsData]);
-
-  const complaints = useMemo(() => {
-    if (!complaintsData?.data) return [];
-    return complaintsData.data;
-  }, [complaintsData]);
+  // ─── Helper: get full hostel path ────────────────────────────
+  const getHostelPath = (bunk) => {
+    if (!bunk) return 'Not Allocated';
+    const room = bunk.roomId;
+    if (!room) return 'Unknown Room';
+    const building = room.buildingId;
+    if (!building) return `Room ${room.roomNumber}`;
+    const hostel = building.hostelId;
+    if (!hostel) return `${building.name} - Room ${room.roomNumber}`;
+    return `${hostel.name} - ${building.name} - Room ${room.roomNumber}`;
+  };
 
   // ─── Compute enriched student data ───────────────────────────
   const enrichedStudents = useMemo(() => {
-    // Build a map of studentId -> check-in records
+    // Map: studentId -> check-in records
     const studentCheckIns = new Map();
     checkIns.forEach(record => {
       const userId = record.user?._id || record.user;
@@ -89,7 +90,7 @@ const AdminStudents = () => {
       studentCheckIns.get(userId).push(record);
     });
 
-    // Build a map of studentId -> complaint count
+    // Map: studentId -> complaint count
     const studentComplaints = new Map();
     complaints.forEach(comp => {
       const userId = comp.user?._id || comp.user;
@@ -97,35 +98,34 @@ const AdminStudents = () => {
       studentComplaints.set(userId, (studentComplaints.get(userId) || 0) + 1);
     });
 
-    // Enrich each student
     return students.map(student => {
       const records = studentCheckIns.get(student._id) || [];
-      // Sort by checkoutTime descending
       records.sort((a, b) => new Date(b.checkoutTime) - new Date(a.checkoutTime));
-      const latest = records.length > 0 ? records[0] : null;
+      const latest = records[0] || null;
       const totalCheckIns = records.length;
 
-      // Determine status: if latest has no returnTime => checked-in, else checked-out
       let status = 'checked-out';
       let lastCheckIn = 'N/A';
       let lastCheckOut = 'N/A';
+
       if (latest) {
         if (!latest.returnTime) {
           status = 'checked-in';
           lastCheckIn = new Date(latest.checkoutTime).toLocaleString();
-          // find previous check-out? Not easily; we can leave as N/A or use latest checkout time as last check-out?
-          // For last check-out, we can look for a previous record with returnTime.
           const previousWithReturn = records.find(r => r.returnTime && r._id !== latest._id);
           lastCheckOut = previousWithReturn ? new Date(previousWithReturn.returnTime).toLocaleString() : 'N/A';
         } else {
-          // checked-out
           status = 'checked-out';
           lastCheckOut = new Date(latest.returnTime).toLocaleString();
-          // lastCheckIn would be the checkout time of this record? Actually it's the last time they checked in.
-          // We'll use the checkout time of the latest record.
           lastCheckIn = new Date(latest.checkoutTime).toLocaleString();
         }
       }
+
+      const bunk = student.allocatedBunk;
+      const roomNumber = bunk?.roomId?.roomNumber || 'N/A';
+      const bunkNumber = bunk?.bunkNumber || 'N/A';
+      const hostelDisplayName = getHostelPath(bunk);
+      const level = student.yearOfStudy ? `${student.yearOfStudy}00L` : 'N/A';
 
       return {
         ...student,
@@ -134,14 +134,10 @@ const AdminStudents = () => {
         lastCheckOut,
         totalCheckIns,
         totalComplaints: studentComplaints.get(student._id) || 0,
-        // If allocatedBunk is populated, we can get hostel/room/bunk
-        hostelName: student.allocatedBunk?.roomNumber ? `Room ${student.allocatedBunk.roomNumber}` : 'Not Allocated',
-        roomNumber: student.allocatedBunk?.roomNumber || 'N/A',
-        bunkNumber: student.allocatedBunk?.bunkNumber || 'N/A',
-        // We don't have hostel name from bunk, but we can assign a default or fetch from a separate endpoint if needed.
-        // For now, we'll set a placeholder.
-        hostelDisplayName: student.allocatedBunk ? `Room ${student.allocatedBunk.roomNumber}` : 'Not Allocated',
-        level: `${student.yearOfStudy || 0}00L`, // approximate
+        hostelDisplayName,
+        roomNumber,
+        bunkNumber,
+        level,
       };
     });
   }, [students, checkIns, complaints]);
@@ -192,8 +188,8 @@ const AdminStudents = () => {
   };
 
   // ─── Unique filter options ────────────────────────────────────
-  const hostels = ['all', ...new Set(enrichedStudents.map(s => s.hostelDisplayName).filter(h => h && h !== 'Not Allocated'))];
-  const levels = ['all', ...new Set(enrichedStudents.map(s => s.level).filter(l => l && l !== '0L'))];
+  const hostels = ['all', ...new Set(enrichedStudents.map(s => s.hostelDisplayName).filter(h => h !== 'Not Allocated'))];
+  const levels = ['all', ...new Set(enrichedStudents.map(s => s.level).filter(l => l !== 'N/A'))];
   const statuses = ['all', 'checked-in', 'checked-out'];
 
   // ─── Loading / Error ──────────────────────────────────────────
@@ -469,7 +465,7 @@ const AdminStudents = () => {
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <Bed size={14} className="text-gray-400" />
-                      <span className="text-gray-700">{selectedStudent.roomNumber} • {selectedStudent.bunkNumber}</span>
+                      <span className="text-gray-700">Room {selectedStudent.roomNumber} • Bunk {selectedStudent.bunkNumber}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <MapPin size={14} className="text-gray-400" />

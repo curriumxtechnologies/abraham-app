@@ -62,26 +62,33 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    // Reference to the bunk allocated to this user
     allocatedBunk: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Bunk",
       default: null,
     },
-    // QR code secret for check-in/out scanning
     qrSecret: {
       type: String,
       default: null,
+    },
+    // ── Optional additions ──
+    gender: {
+      type: String,
+      enum: ["male", "female", "other"],
+      default: "other",
+    },
+    phoneNumber: {
+      type: String,
+      trim: true,
+      default: "",
     },
   },
   { timestamps: true }
 );
 
-// Hash password before saving (no `next` callback)
+// Hash password before saving
 userSchema.pre("save", async function () {
-  // Only hash if password is modified
   if (!this.isModified("password")) return;
-
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 });
@@ -93,13 +100,13 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
 
 // Generate and store OTP
 userSchema.methods.generateOTP = function () {
-  const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
   this.otp = otp;
-  this.otpExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
+  this.otpExpires = Date.now() + 5 * 60 * 1000;
   return otp;
 };
 
-// Clear OTP fields after use
+// Clear OTP fields
 userSchema.methods.clearOTP = function () {
   this.otp = undefined;
   this.otpExpires = undefined;
