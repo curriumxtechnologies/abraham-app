@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import {
@@ -22,12 +22,11 @@ import { useGetMyHistoryQuery, useCheckoutMutation, useReturnCheckinMutation } f
 
 const QRScanner = () => {
   const navigate = useNavigate();
-  const scannerContainerRef = useRef(null);
-  const html5QrCodeRef = useRef(null);
+  const [scannerInstance, setScannerInstance] = useState(null);
 
   // ─── State ────────────────────────────────────────────────────
   const [isScanning, setIsScanning] = useState(false);
-  const [scanMode, setScanMode] = useState(null); // 'check-in' or 'check-out'
+  const [scanMode, setScanMode] = useState(null);
   const [scanResult, setScanResult] = useState(null);
   const [scanMessage, setScanMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -39,8 +38,8 @@ const QRScanner = () => {
   const { data: historyData, isLoading: historyLoading, refetch: refetchHistory } = useGetMyHistoryQuery(undefined, {
     skip: !allocationData?.data,
   });
-  const [checkout, { isLoading: checkoutLoading }] = useCheckoutMutation();
-  const [returnCheckin, { isLoading: returnLoading }] = useReturnCheckinMutation();
+  const [checkout] = useCheckoutMutation();
+  const [returnCheckin] = useReturnCheckinMutation();
 
   // ─── Derived state ────────────────────────────────────────────
   const allocatedBunk = allocationData?.data;
@@ -48,11 +47,11 @@ const QRScanner = () => {
   const latestRecord = checkInHistory.length > 0 ? checkInHistory[0] : null;
   const isInside = allocatedBunk ? (latestRecord ? !!latestRecord.returnTime : true) : null;
 
-  // ─── Start / stop scanner ──────────────────────────────────────
+  // ─── Start scanner ────────────────────────────────────────────
   const startScanner = async (mode) => {
     if (!allocatedBunk) {
       setScanResult('error');
-      setScanMessage('You have no bunk allocation. Please select a hostel first.');
+      setScanMessage('You have no bunk allocation.');
       return;
     }
 
@@ -64,22 +63,22 @@ const QRScanner = () => {
     setIsInitializing(true);
 
     try {
-      // Clean up any previous instance
-      if (html5QrCodeRef.current) {
-        try {
-          await html5QrCodeRef.current.stop();
-        } catch (e) {}
-        html5QrCodeRef.current = null;
+      // Clean up previous scanner
+      if (scannerInstance) {
+        try { await scannerInstance.stop(); } catch (e) {}
+        try { await scannerInstance.clear(); } catch (e) {}
+        setScannerInstance(null);
       }
 
-      // Clear the container
-      if (scannerContainerRef.current) {
-        scannerContainerRef.current.innerHTML = '';
+      // Get the container element
+      const container = document.getElementById('qr-reader-container');
+      if (!container) {
+        throw new Error('Scanner container not found');
       }
+      container.innerHTML = ''; // Clear any previous content
 
-      // Create new instance
-      const html5QrCode = new Html5Qrcode(scannerContainerRef.current);
-      html5QrCodeRef.current = html5QrCode;
+      const html5QrCode = new Html5Qrcode('qr-reader-container');
+      setScannerInstance(html5QrCode);
 
       const config = {
         fps: 10,
@@ -97,35 +96,33 @@ const QRScanner = () => {
       setIsInitializing(false);
     } catch (err) {
       console.error('Scanner start error:', err);
-      setCameraError(
-        err.message || 'Unable to start camera. Please check permissions and try again.'
-      );
+      setCameraError(err.message || 'Unable to start camera. Please check permissions.');
       setIsScanning(false);
       setIsInitializing(false);
     }
   };
 
+  // ─── Stop scanner ────────────────────────────────────────────
   const stopScanner = async () => {
-    if (html5QrCodeRef.current) {
+    if (scannerInstance) {
       try {
-        await html5QrCodeRef.current.stop();
+        await scannerInstance.stop();
+        await scannerInstance.clear();
       } catch (e) {}
-      html5QrCodeRef.current = null;
+      setScannerInstance(null);
     }
-    if (scannerContainerRef.current) {
-      scannerContainerRef.current.innerHTML = '';
-    }
+    const container = document.getElementById('qr-reader-container');
+    if (container) container.innerHTML = '';
     setIsScanning(false);
     setScanMode(null);
     setIsInitializing(false);
   };
 
-  // ─── QR scan callbacks ────────────────────────────────────────
+  // ─── Scan callbacks ──────────────────────────────────────────
   const onScanSuccess = async (decodedText) => {
-    // Prevent multiple scans while processing
     if (isProcessing) return;
-
     setIsProcessing(true);
+
     try {
       let result;
       if (scanMode === 'check-in') {
@@ -137,45 +134,41 @@ const QRScanner = () => {
         throw new Error('Invalid scan mode');
       }
 
-      if (result && result.success) {
+      if (result?.success) {
         setScanResult('success');
-        setScanMessage(result.message || 'Action completed successfully.');
+        setScanMessage(result.message || 'Action completed.');
         await refetchHistory();
-        // Stop scanner after success
         await stopScanner();
       } else {
         throw new Error(result?.message || 'Action failed');
       }
     } catch (error) {
       setScanResult('error');
-      setScanMessage(error?.data?.message || error.message || 'Action failed. Please try again.');
-      // Keep scanner running so user can retry
+      setScanMessage(error?.data?.message || error.message || 'Action failed.');
     } finally {
       setIsProcessing(false);
     }
   };
 
   const onScanError = (err) => {
-    // Ignore typical scanning errors
-    if (err && err.message && err.message.includes('No MultiFormat Readers')) {
-      return;
-    }
+    // Ignore typical continuous scanning errors
+    if (err?.message?.includes('No MultiFormat Readers')) return;
     console.warn('QR scan error:', err);
   };
 
   // ─── Cleanup on unmount ──────────────────────────────────────
   useEffect(() => {
     return () => {
-      if (html5QrCodeRef.current) {
-        html5QrCodeRef.current.stop().catch(() => {});
-        html5QrCodeRef.current = null;
+      if (scannerInstance) {
+        scannerInstance.stop().catch(() => {});
+        scannerInstance.clear().catch(() => {});
       }
     };
-  }, []);
+  }, [scannerInstance]);
 
   // ─── Handlers ────────────────────────────────────────────────
-  const handleScanAction = async (mode) => {
-    await startScanner(mode);
+  const handleScanAction = (mode) => {
+    startScanner(mode);
   };
 
   const handleRetry = () => {
@@ -190,13 +183,13 @@ const QRScanner = () => {
     setScanMessage('');
   };
 
-  // ─── Loading / Error ─────────────────────────────────────────
+  // ─── Loading states ──────────────────────────────────────────
   if (allocLoading || historyLoading) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <Loader2 size={40} className="animate-spin text-[#0E2F76]" />
-          <p className="text-[#0E2F76]/60 text-sm font-inter mt-4">Loading scanner...</p>
+          <p className="text-[#0E2F76]/60 text-sm font-inter mt-4">Loading...</p>
         </div>
       </MainLayout>
     );
@@ -213,7 +206,7 @@ const QRScanner = () => {
               You need to select a hostel and bunk before you can check in or out.
             </p>
             <Button variant="primary" onClick={() => navigate('/home')} fullWidth>
-              Go to Home to Select Hostel
+              Go to Home
             </Button>
           </div>
         </div>
@@ -226,20 +219,16 @@ const QRScanner = () => {
     <MainLayout>
       <FloatingShapes />
       <div className="relative z-10 min-h-screen">
-        {/* Header */}
         <div className="px-6 pt-8 pb-4">
           <h1 className="text-2xl font-bold text-[#0E2F76]">QR Scanner</h1>
           <p className="text-[#0E2F76]/50 text-sm">Scan QR code at hostel entrance</p>
         </div>
 
         {isScanning ? (
-          // Scanner view
           <div className="px-6">
-            <div className="relative bg-black rounded-[24px] overflow-hidden shadow-lg mb-4">
-              {/* Camera container */}
-              <div ref={scannerContainerRef} className="w-full h-[400px] bg-black" />
+            <div className="relative bg-black rounded-[24px] overflow-hidden shadow-lg">
+              <div id="qr-reader-container" className="w-full h-[400px] bg-black" />
 
-              {/* Overlay: Initializing */}
               {isInitializing && (
                 <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
                   <div className="text-center">
@@ -249,10 +238,9 @@ const QRScanner = () => {
                 </div>
               )}
 
-              {/* Overlay: Camera error */}
               {cameraError && !isInitializing && (
                 <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-6">
-                  <div className="text-center max-w-sm">
+                  <div className="text-center">
                     <XCircle size={48} className="text-red-400 mx-auto mb-3" />
                     <p className="text-white text-sm mb-4">{cameraError}</p>
                     <div className="flex flex-wrap gap-2 justify-center">
@@ -273,7 +261,6 @@ const QRScanner = () => {
                 </div>
               )}
 
-              {/* Overlay: Processing */}
               {isProcessing && !cameraError && (
                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                   <div className="text-center">
@@ -284,7 +271,7 @@ const QRScanner = () => {
               )}
             </div>
 
-            <div className="flex items-center justify-between px-2">
+            <div className="flex items-center justify-between px-2 mt-4">
               <button
                 onClick={handleClose}
                 disabled={isProcessing}
@@ -296,11 +283,10 @@ const QRScanner = () => {
                 <p className="text-xs text-[#0E2F76]/50">{scanMode === 'check-in' ? 'Check In' : 'Check Out'}</p>
                 <div className={`w-3 h-3 rounded-full mx-auto ${scanMode === 'check-in' ? 'bg-green-500' : 'bg-orange-500'}`} />
               </div>
-              <div className="w-16" /> {/* placeholder for symmetry */}
+              <div className="w-16" />
             </div>
           </div>
         ) : scanResult ? (
-          // Result view
           <div className="px-6">
             <div className="bg-white rounded-[24px] p-8 shadow-sm border text-center">
               {scanResult === 'success' ? (
@@ -333,14 +319,13 @@ const QRScanner = () => {
             </div>
           </div>
         ) : (
-          // Initial action buttons
           <div className="px-6">
             <div className={`rounded-[24px] p-6 shadow-sm border mb-6 ${isInside ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
               <div className="flex items-center gap-4">
                 <MapPin size={28} className={isInside ? 'text-green-600' : 'text-orange-600'} />
                 <div>
                   <h3 className={`text-lg font-semibold ${isInside ? 'text-green-700' : 'text-orange-700'}`}>
-                    {isInside ? 'Currently Inside Hostel' : 'Currently Outside Hostel'}
+                    {isInside ? 'Inside Hostel' : 'Outside Hostel'}
                   </h3>
                   <p className="text-[#0E2F76]/50 text-sm">
                     {latestRecord
