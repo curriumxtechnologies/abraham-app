@@ -629,11 +629,6 @@ const HomePage = () => {
                                       }`}
                                     >
                                       Bunk {bunk.bunkNumber}
-                                      {room.price > 0 && (
-                                        <span className="block text-xs font-normal text-[#0E2F76]/50 mt-0.5">
-                                          ₦{room.price.toLocaleString()}
-                                        </span>
-                                      )}
                                     </button>
                                   ))}
                                 </div>

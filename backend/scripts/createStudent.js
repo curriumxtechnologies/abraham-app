@@ -1,4 +1,4 @@
-// scripts/createStudent.js
+// scripts/createJoshua.js
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -42,18 +42,18 @@ const createStudent = async () => {
     await mongoose.connect(mongoUri);
     console.log('✅ Connected.');
 
-    // ─── Student credentials ─────────────────────────────────
+    // ─── Student credentials (Joshua) ──────────────────────
     const studentData = {
-      fullName: 'Abraham Uyoattah',
-      studentId: 'u1cs2214',
-      institutionalEmail: 'abraham.uyoattah@gmail.com',
-      department: 'Computer Science',
-      yearOfStudy: 2,
-      password: 'abstudentpass', // plain – will be hashed by model
+      fullName: 'Joshua Sorochi',
+      studentId: 'U1CS2416TR',
+      institutionalEmail: 'joshuasorochi@gmail.com',
+      department: 'Computer Science',        // adjust as needed
+      yearOfStudy: 2,                       // adjust as needed
+      password: 'joshua2026',               // will be hashed by model
       role: 'user',
       isVerified: true,
-      phoneNumber: '08012345678',
-      gender: 'male',
+      phoneNumber: '08012345678',           // placeholder
+      gender: 'male',                       // placeholder
     };
 
     // Check if already exists
