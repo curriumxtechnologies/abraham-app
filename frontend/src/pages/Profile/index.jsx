@@ -254,15 +254,6 @@ const Profile = () => {
                     <p className="text-xs text-[#0E2F76]/50">Bunk</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#AAC0E1]/20 flex items-center justify-center">
-                    <MapPin size={18} className="text-[#0E2F76]" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-[#0E2F76]">₦{allocatedBunk.price?.toLocaleString() || '0'}</p>
-                    <p className="text-xs text-[#0E2F76]/50">Price</p>
-                  </div>
-                </div>
               </div>
             ) : (
               <div className="text-center py-4">
@@ -403,15 +394,6 @@ const Profile = () => {
                     <div>
                       <p className="text-sm text-gray-500">Bunk</p>
                       <p className="text-lg font-bold text-[#0E2F76]">Bunk {allocatedBunk.bunkNumber}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-                    <div className="w-12 h-12 rounded-full bg-[#AAC0E1]/20 flex items-center justify-center">
-                      <MapPin size={22} className="text-[#0E2F76]" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Price</p>
-                      <p className="text-lg font-bold text-[#0E2F76]">₦{allocatedBunk.price?.toLocaleString() || '0'}</p>
                     </div>
                   </div>
                 </div>
