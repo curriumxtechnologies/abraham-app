@@ -24,7 +24,7 @@ const bunkSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// unique PER ROOM, not global
+// Unique PER ROOM only — this is the only index that should exist
 bunkSchema.index({ roomId: 1, bunkNumber: 1 }, { unique: true });
 
 const Bunk = mongoose.model("Bunk", bunkSchema);
