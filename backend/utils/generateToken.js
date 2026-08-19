@@ -7,8 +7,8 @@ const generateToken = (res, userId) => {
 
   res.cookie("jwt", token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure: true, // must be true when sameSite is "none" — always true in prod anyway
+    sameSite: "none", // REQUIRED for cross-domain (vercel <-> onrender)
     maxAge: 30 * 24 * 60 * 60 * 1000,
   });
 
