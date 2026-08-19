@@ -25,7 +25,12 @@ import MainLayout from '../../layouts/MainLayout';
 import Button from '../../components/buttons/Button';
 // ─── API hooks ───
 import { useGetUserInfoQuery } from '../../slices/userApiSlice';
-import { useGetMyAllocationQuery, useGetHostelsQuery, useAllocateBunkMutation } from '../../slices/hostelApiSlice';
+import {
+  useGetMyAllocationQuery,
+  useGetHostelsQuery,
+  useAllocateBunkMutation,
+  useGetAllBunksQuery, // ✅ added
+} from '../../slices/hostelApiSlice';
 import { useGetMyHistoryQuery } from '../../slices/checkInApiSlice';
 import { useGetComplaintsQuery } from '../../slices/complaintApiSlice';
 
@@ -55,6 +60,15 @@ const HomePage = () => {
     skip: !showHostelModal,
   });
 
+  // ✅ Fetch all bunks separately (fallback)
+  const {
+    data: allBunksData,
+    isLoading: bunksLoading,
+    refetch: refetchAllBunks,
+  } = useGetAllBunksQuery(undefined, {
+    skip: !showHostelModal,
+  });
+
   // ─── Mutation ───────────────────────────────────────────────
   const [allocateBunk, { isLoading: allocateLoading }] = useAllocateBunkMutation();
 
@@ -78,21 +92,31 @@ const HomePage = () => {
     return hostel?.buildings || [];
   }, [selectedHostelId, hostels]);
 
+  // ✅ Merge bunks from allBunksData into rooms
   const roomOptions = useMemo(() => {
     if (!selectedBuildingId) return [];
     const hostel = hostels.find((h) => h._id === selectedHostelId);
     const building = hostel?.buildings?.find((b) => b._id === selectedBuildingId);
-    return building?.rooms || [];
-  }, [selectedHostelId, selectedBuildingId, hostels]);
+    const rooms = building?.rooms || [];
 
-  // ─── Debug log and refetch on modal open ──────────────────────
-  useEffect(() => {
-    if (showHostelModal) {
-      // Force refresh to get latest data
-      refetchHostels();
+    // If we have bunks from the separate query, attach them
+    if (allBunksData?.data) {
+      const bunkMap = {};
+      allBunksData.data.forEach((bunk) => {
+        const roomId = bunk.roomId?._id || bunk.roomId;
+        if (!bunkMap[roomId]) bunkMap[roomId] = [];
+        bunkMap[roomId].push(bunk);
+      });
+      // Add bunks to each room
+      return rooms.map((room) => ({
+        ...room,
+        bunks: bunkMap[room._id] || room.bunks || [], // prefer existing, else fallback
+      }));
     }
-  }, [showHostelModal, refetchHostels]);
+    return rooms;
+  }, [selectedHostelId, selectedBuildingId, hostels, allBunksData]);
 
+  // ─── Debug log ──────────────────────────────────────────────
   useEffect(() => {
     if (hostelsData?.data && selectedHostelId) {
       const hostel = hostelsData.data.find((h) => h._id === selectedHostelId);
@@ -538,7 +562,7 @@ const HomePage = () => {
 
             {/* Body */}
             <div className="px-6 py-5">
-              {hostelsLoading ? (
+              {hostelsLoading || bunksLoading ? (
                 <div className="flex justify-center py-8">
                   <Loader2 size={32} className="animate-spin text-[#0E2F76]" />
                 </div>

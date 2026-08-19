@@ -1,4 +1,3 @@
-// models/bunkModel.js
 import mongoose from "mongoose";
 
 const bunkSchema = new mongoose.Schema(
@@ -11,7 +10,6 @@ const bunkSchema = new mongoose.Schema(
     bunkNumber: {
       type: Number,
       required: true,
-      min: 1,
     },
     isAvailable: {
       type: Boolean,
@@ -26,7 +24,7 @@ const bunkSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Unique bunk number per room
+// unique PER ROOM, not global
 bunkSchema.index({ roomId: 1, bunkNumber: 1 }, { unique: true });
 
 const Bunk = mongoose.model("Bunk", bunkSchema);
