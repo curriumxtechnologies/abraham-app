@@ -1,3 +1,4 @@
+// models/roomModel.js
 import mongoose from "mongoose";
 
 const roomSchema = new mongoose.Schema(
@@ -30,7 +31,7 @@ const roomSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Ensure unique room number per building
+// Unique room number per building
 roomSchema.index({ buildingId: 1, roomNumber: 1 }, { unique: true });
 
 const Room = mongoose.model("Room", roomSchema);

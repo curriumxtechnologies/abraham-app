@@ -207,6 +207,11 @@ const createBuilding = asyncHandler(async (req, res) => {
 // @route   POST /api/hostel/admin/room
 // @access  Private/Admin
 // ──────────────────────────────────────────────────────────────
+// controllers/hostelAllocationController.js
+
+// @desc    Admin: Create a room with automatic bunks
+// @route   POST /api/hostel/admin/room
+// @access  Private/Admin
 const createRoom = asyncHandler(async (req, res) => {
   if (req.user.role !== "admin" && req.user.role !== "super_admin") {
     res.status(403);
@@ -226,12 +231,13 @@ const createRoom = asyncHandler(async (req, res) => {
   }
 
   // Check if room already exists in this building
-  const existing = await Room.findOne({ buildingId, roomNumber });
-  if (existing) {
+  const existingRoom = await Room.findOne({ buildingId, roomNumber });
+  if (existingRoom) {
     res.status(400);
     throw new Error("Room number already exists in this building");
   }
 
+  // Create room
   const room = await Room.create({
     buildingId,
     roomNumber,
@@ -242,7 +248,11 @@ const createRoom = asyncHandler(async (req, res) => {
   // Auto-create bunks
   const bunks = [];
   for (let i = 1; i <= bunkCount; i++) {
-    bunks.push({ roomId: room._id, bunkNumber: i, isAvailable: true });
+    bunks.push({
+      roomId: room._id,
+      bunkNumber: i,
+      isAvailable: true,
+    });
   }
   await Bunk.insertMany(bunks);
 

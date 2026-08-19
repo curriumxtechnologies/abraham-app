@@ -1,3 +1,4 @@
+// models/bunkModel.js
 import mongoose from "mongoose";
 
 const bunkSchema = new mongoose.Schema(
@@ -25,7 +26,7 @@ const bunkSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Ensure unique bunk number per room
+// Unique bunk number per room
 bunkSchema.index({ roomId: 1, bunkNumber: 1 }, { unique: true });
 
 const Bunk = mongoose.model("Bunk", bunkSchema);
