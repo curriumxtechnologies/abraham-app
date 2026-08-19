@@ -47,7 +47,11 @@ const HomePage = () => {
     skip: !allocationData?.data,
   });
   const { data: complaintsData, isLoading: complaintsLoading } = useGetComplaintsQuery();
-  const { data: hostelsData, isLoading: hostelsLoading, refetch: refetchHostels } = useGetHostelsQuery(undefined, {
+  const {
+    data: hostelsData,
+    isLoading: hostelsLoading,
+    refetch: refetchHostels,
+  } = useGetHostelsQuery(undefined, {
     skip: !showHostelModal,
   });
 
@@ -81,20 +85,25 @@ const HomePage = () => {
     return building?.rooms || [];
   }, [selectedHostelId, selectedBuildingId, hostels]);
 
-  // ─── Debug log when data loads ──────────────────────────────
+  // ─── Debug log and refetch on modal open ──────────────────────
   useEffect(() => {
-    if (hostelsData?.data) {
-      console.log('🏠 Hostels data:', hostelsData.data);
-      // Check if the selected hostel has buildings and rooms
-      if (selectedHostelId) {
-        const hostel = hostelsData.data.find((h) => h._id === selectedHostelId);
-        console.log('🏢 Selected hostel:', hostel);
-        if (hostel?.buildings) {
-          console.log('🏗️ Buildings:', hostel.buildings);
-          hostel.buildings.forEach((b) => {
-            console.log(`  - ${b.name}: ${b.rooms?.length || 0} rooms`);
+    if (showHostelModal) {
+      // Force refresh to get latest data
+      refetchHostels();
+    }
+  }, [showHostelModal, refetchHostels]);
+
+  useEffect(() => {
+    if (hostelsData?.data && selectedHostelId) {
+      const hostel = hostelsData.data.find((h) => h._id === selectedHostelId);
+      console.log('🏢 Selected hostel:', hostel);
+      if (hostel?.buildings) {
+        hostel.buildings.forEach((b) => {
+          console.log(`  - ${b.name}: ${b.rooms?.length || 0} rooms`);
+          b.rooms?.forEach((room) => {
+            console.log(`    Room ${room.roomNumber}: ${room.bunks?.length || 0} bunks`);
           });
-        }
+        });
       }
     }
   }, [hostelsData, selectedHostelId]);
@@ -297,7 +306,7 @@ const HomePage = () => {
             </button>
           </div>
 
-          {/* Allocation Status Card (unchanged) */}
+          {/* Allocation Status Card */}
           <div className="bg-white rounded-[24px] p-5 shadow-sm border border-[#AAC0E1]/20 mb-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-[#0E2F76] font-inter">Hostel Allocation</h3>
@@ -343,7 +352,7 @@ const HomePage = () => {
             )}
           </div>
 
-          {/* Status Card (unchanged) */}
+          {/* Status Card */}
           {allocatedBunk && (
             <div
               className={`rounded-[24px] p-5 shadow-sm border mb-4 ${
@@ -386,160 +395,277 @@ const HomePage = () => {
           )}
         </div>
 
-        {/* Quick Actions and other sections (unchanged) */}
-        {/* ... keep the same as before ... */}
+        {/* Quick Actions – only if allocated */}
+        {allocatedBunk && (
+          <div className="px-6 mb-6">
+            <h3 className="text-sm font-semibold text-[#0E2F76] mb-3 font-inter">Quick Actions</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => navigate('/qr-scanner')}
+                className="bg-white rounded-[20px] p-4 shadow-sm border border-[#AAC0E1]/20 hover:shadow-md transition-all duration-300 active:scale-[0.98]"
+              >
+                <div className="w-12 h-12 rounded-full bg-[#AAC0E1]/20 flex items-center justify-center mb-3">
+                  <QrCode size={22} className="text-[#0E2F76]" strokeWidth={2} />
+                </div>
+                <h4 className="text-sm font-semibold text-[#0E2F76] text-left">
+                  {isInside ? 'Check Out' : 'Check In'}
+                </h4>
+                <p className="text-xs text-[#0E2F76]/50 mt-1 text-left">Scan QR code at entrance</p>
+              </button>
+              <button
+                onClick={() => navigate('/attendance-history')}
+                className="bg-white rounded-[20px] p-4 shadow-sm border border-[#AAC0E1]/20 hover:shadow-md transition-all duration-300 active:scale-[0.98]"
+              >
+                <div className="w-12 h-12 rounded-full bg-[#AAC0E1]/20 flex items-center justify-center mb-3">
+                  <Clock size={22} className="text-[#0E2F76]" strokeWidth={2} />
+                </div>
+                <h4 className="text-sm font-semibold text-[#0E2F76] text-left">History</h4>
+                <p className="text-xs text-[#0E2F76]/50 mt-1 text-left">View attendance log</p>
+              </button>
+            </div>
+          </div>
+        )}
 
-        {/* ─── Hostel Selection Modal (FIXED) ─────────────────── */}
-        {showHostelModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-4">
-            <div className="bg-white rounded-[32px] w-full max-w-md max-h-[85vh] overflow-y-auto relative mt-8 md:mt-0">
-              {/* Header */}
-              <div className="sticky top-0 bg-white z-10 px-6 py-5 border-b border-[#AAC0E1]/20 flex items-center justify-between rounded-t-[32px]">
-                <h2 className="text-xl font-bold text-[#0E2F76] font-inter">Select a Bunk</h2>
-                <button
-                  onClick={() => {
-                    setShowHostelModal(false);
-                    setSelectedBunkId(null);
-                    setSelectedHostelId('');
-                    setSelectedBuildingId('');
-                  }}
-                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#AAC0E1]/10 transition-all"
+        {/* Complaints Summary */}
+        <div className="px-6 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-[#0E2F76] font-inter">Recent Complaints</h3>
+            <button
+              onClick={() => navigate('/complaints')}
+              className="text-xs text-[#0E2F76]/60 hover:text-[#0E2F76] font-medium flex items-center gap-1"
+            >
+              View All <ArrowUpRight size={14} />
+            </button>
+          </div>
+
+          {complaints.length > 0 ? (
+            <div className="space-y-2">
+              {complaints.slice(0, 2).map((complaint) => (
+                <div
+                  key={complaint._id}
+                  onClick={() => navigate(`/complaints/${complaint._id}`)}
+                  className="bg-white rounded-[20px] p-4 shadow-sm border border-[#AAC0E1]/20 hover:shadow-md transition-all duration-300 cursor-pointer active:scale-[0.99]"
                 >
-                  <X size={22} className="text-[#0E2F76]" strokeWidth={2} />
-                </button>
-              </div>
-
-              {/* Body */}
-              <div className="px-6 py-5">
-                {hostelsLoading ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 size={32} className="animate-spin text-[#0E2F76]" />
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-medium text-[#0E2F76]">{complaint.title}</h4>
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-[10px] font-medium border ${getStatusColor(
+                        complaint.status
+                      )}`}
+                    >
+                      {complaint.status === 'pending'
+                        ? 'Submitted'
+                        : complaint.status === 'read'
+                        ? 'In Progress'
+                        : 'Resolved'}
+                    </span>
                   </div>
-                ) : hostels.length > 0 ? (
-                  <div className="space-y-4">
-                    {/* Hostel Dropdown */}
-                    <CustomDropdown
-                      label="Select Hostel"
-                      options={hostelOptions}
-                      value={selectedHostelId}
-                      onChange={(id) => {
-                        setSelectedHostelId(id);
-                        setSelectedBuildingId('');
-                        setSelectedBunkId(null);
-                      }}
-                      placeholder="-- Choose Hostel --"
-                      disabled={hostels.length === 1}
-                    />
-
-                    {/* Building Dropdown */}
-                    <CustomDropdown
-                      label="Select Building"
-                      options={buildingOptions}
-                      value={selectedBuildingId}
-                      onChange={(id) => {
-                        setSelectedBuildingId(id);
-                        setSelectedBunkId(null);
-                      }}
-                      placeholder="-- Choose Building --"
-                      disabled={!selectedHostelId || buildingOptions.length === 1}
-                    />
-
-                    {/* Rooms & Bunks */}
-                    {selectedBuildingId && (
-                      <div className="space-y-3 mt-2">
-                        {roomOptions.length > 0 ? (
-                          roomOptions.map((room) => {
-                            const availableBunks = room.bunks?.filter((b) => b.isAvailable) || [];
-                            const allBunks = room.bunks || [];
-                            const isFull = allBunks.length > 0 && availableBunks.length === 0;
-
-                            return (
-                              <div key={room._id} className="bg-[#F5FEFF] rounded-[16px] p-4 border border-[#AAC0E1]/20">
-                                <div className="flex items-center justify-between mb-3">
-                                  <h3 className="text-sm font-semibold text-[#0E2F76]">
-                                    Room {room.roomNumber}
-                                  </h3>
-                                  {isFull && (
-                                    <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">
-                                      Full
-                                    </span>
-                                  )}
-                                  {!isFull && allBunks.length > 0 && (
-                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                                      {availableBunks.length} available
-                                    </span>
-                                  )}
-                                </div>
-                                {availableBunks.length > 0 ? (
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {availableBunks.map((bunk) => (
-                                      <button
-                                        key={bunk._id}
-                                        onClick={() => handleSelectBunk(bunk._id)}
-                                        className={`p-3 rounded-[12px] border-2 text-sm font-medium transition-all ${
-                                          selectedBunkId === bunk._id
-                                            ? 'border-[#0E2F76] bg-[#0E2F76]/5 text-[#0E2F76]'
-                                            : 'border-[#AAC0E1]/30 bg-white text-[#0E2F76]/70 hover:border-[#0E2F76]/30'
-                                        }`}
-                                      >
-                                        Bunk {bunk.bunkNumber}
-                                        {room.price > 0 && (
-                                          <span className="block text-xs font-normal text-[#0E2F76]/50 mt-0.5">
-                                            ₦{room.price.toLocaleString()}
-                                          </span>
-                                        )}
-                                      </button>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-[#0E2F76]/40 text-center py-2">
-                                    {isFull ? 'All bunks occupied' : 'No bunks available'}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <div className="text-center py-4 text-sm text-[#0E2F76]/50">
-                            No rooms found in this building. Contact admin.
-                          </div>
-                        )}
-                      </div>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[#0E2F76]/40">{complaint.category}</span>
+                    <span className="text-[#AAC0E1]">•</span>
+                    <span className="text-xs text-[#0E2F76]/40">
+                      {new Date(complaint.createdAt).toLocaleDateString()}
+                    </span>
                   </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Bed size={40} className="text-[#AAC0E1] mx-auto mb-3" />
-                    <p className="text-[#0E2F76]/60">No hostels or bunks available at the moment.</p>
-                    <p className="text-xs text-[#0E2F76]/40 mt-1">Contact admin for assistance.</p>
-                  </div>
-                )}
-              </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white rounded-[20px] p-6 shadow-sm border border-[#AAC0E1]/20 text-center">
+              <MessageSquare size={32} className="text-[#AAC0E1] mx-auto mb-2" />
+              <p className="text-sm text-[#0E2F76]/50">No complaints submitted yet</p>
+            </div>
+          )}
+        </div>
 
-              {/* Footer */}
-              <div className="sticky bottom-0 bg-white px-6 py-5 border-t border-[#AAC0E1]/20 rounded-b-[32px]">
-                <Button
-                  variant="primary"
-                  fullWidth
-                  disabled={!selectedBunkId || allocating || allocateLoading}
-                  onClick={handleConfirmAllocation}
-                >
-                  {allocating || allocateLoading ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <Loader2 size={18} className="animate-spin" /> Allocating...
+        {/* Recent Activities – only if allocated */}
+        {allocatedBunk && (
+          <div className="px-6 pb-8">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-[#0E2F76] font-inter">Recent Activities</h3>
+            </div>
+            <div className="space-y-2">
+              {recentActivities.length > 0 ? (
+                recentActivities.map((activity) => (
+                  <div
+                    key={activity.id}
+                    className="flex items-start gap-3 bg-white rounded-[20px] p-4 shadow-sm border border-[#AAC0E1]/20"
+                  >
+                    <div
+                      className={`w-10 h-10 rounded-full ${activity.bgColor} flex items-center justify-center flex-shrink-0`}
+                    >
+                      <activity.icon size={18} className={activity.color} strokeWidth={2} />
                     </div>
-                  ) : (
-                    'Confirm Allocation'
-                  )}
-                </Button>
-                <p className="text-xs text-[#0E2F76]/40 text-center mt-3">
-                  You can only allocate one bunk. This action is final.
-                </p>
-              </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between">
+                        <h4 className="text-sm font-medium text-[#0E2F76]">{activity.title}</h4>
+                        <span className="text-[10px] text-[#0E2F76]/40 flex-shrink-0 ml-2">{activity.time}</span>
+                      </div>
+                      <p className="text-xs text-[#0E2F76]/50 mt-0.5">{activity.description}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="bg-white rounded-[20px] p-6 shadow-sm border border-[#AAC0E1]/20 text-center">
+                  <Clock size={32} className="text-[#AAC0E1] mx-auto mb-2" />
+                  <p className="text-sm text-[#0E2F76]/50">No recent activity</p>
+                </div>
+              )}
             </div>
           </div>
         )}
       </div>
+
+      {/* ─── Hostel Selection Modal ────────────────────────────── */}
+      {showHostelModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-4">
+          <div className="bg-white rounded-[32px] w-full max-w-md max-h-[85vh] overflow-y-auto relative mt-8 md:mt-0">
+            {/* Header */}
+            <div className="sticky top-0 bg-white z-10 px-6 py-5 border-b border-[#AAC0E1]/20 flex items-center justify-between rounded-t-[32px]">
+              <h2 className="text-xl font-bold text-[#0E2F76] font-inter">Select a Bunk</h2>
+              <button
+                onClick={() => {
+                  setShowHostelModal(false);
+                  setSelectedBunkId(null);
+                  setSelectedHostelId('');
+                  setSelectedBuildingId('');
+                }}
+                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#AAC0E1]/10 transition-all"
+              >
+                <X size={22} className="text-[#0E2F76]" strokeWidth={2} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5">
+              {hostelsLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 size={32} className="animate-spin text-[#0E2F76]" />
+                </div>
+              ) : hostels.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Hostel Dropdown */}
+                  <CustomDropdown
+                    label="Select Hostel"
+                    options={hostelOptions}
+                    value={selectedHostelId}
+                    onChange={(id) => {
+                      setSelectedHostelId(id);
+                      setSelectedBuildingId('');
+                      setSelectedBunkId(null);
+                    }}
+                    placeholder="-- Choose Hostel --"
+                    disabled={hostels.length === 1}
+                  />
+
+                  {/* Building Dropdown */}
+                  <CustomDropdown
+                    label="Select Building"
+                    options={buildingOptions}
+                    value={selectedBuildingId}
+                    onChange={(id) => {
+                      setSelectedBuildingId(id);
+                      setSelectedBunkId(null);
+                    }}
+                    placeholder="-- Choose Building --"
+                    disabled={!selectedHostelId || buildingOptions.length === 1}
+                  />
+
+                  {/* Rooms & Bunks */}
+                  {selectedBuildingId && (
+                    <div className="space-y-3 mt-2">
+                      {roomOptions.length > 0 ? (
+                        roomOptions.map((room) => {
+                          const availableBunks = room.bunks?.filter((b) => b.isAvailable) || [];
+                          const allBunks = room.bunks || [];
+                          const isFull = allBunks.length > 0 && availableBunks.length === 0;
+
+                          return (
+                            <div key={room._id} className="bg-[#F5FEFF] rounded-[16px] p-4 border border-[#AAC0E1]/20">
+                              <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-sm font-semibold text-[#0E2F76]">Room {room.roomNumber}</h3>
+                                {isFull && (
+                                  <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">Full</span>
+                                )}
+                                {!isFull && allBunks.length > 0 && (
+                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                                    {availableBunks.length} available
+                                  </span>
+                                )}
+                              </div>
+                              {availableBunks.length > 0 ? (
+                                <div className="grid grid-cols-2 gap-2">
+                                  {availableBunks.map((bunk) => (
+                                    <button
+                                      key={bunk._id}
+                                      onClick={() => handleSelectBunk(bunk._id)}
+                                      className={`p-3 rounded-[12px] border-2 text-sm font-medium transition-all ${
+                                        selectedBunkId === bunk._id
+                                          ? 'border-[#0E2F76] bg-[#0E2F76]/5 text-[#0E2F76]'
+                                          : 'border-[#AAC0E1]/30 bg-white text-[#0E2F76]/70 hover:border-[#0E2F76]/30'
+                                      }`}
+                                    >
+                                      Bunk {bunk.bunkNumber}
+                                      {room.price > 0 && (
+                                        <span className="block text-xs font-normal text-[#0E2F76]/50 mt-0.5">
+                                          ₦{room.price.toLocaleString()}
+                                        </span>
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-center py-2">
+                                  <p className="text-sm text-[#0E2F76]/40">
+                                    {allBunks.length === 0
+                                      ? 'No bunks have been added to this room. Contact admin.'
+                                      : 'All bunks are occupied.'}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-4 text-sm text-[#0E2F76]/50">
+                          No rooms found in this building. Contact admin.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Bed size={40} className="text-[#AAC0E1] mx-auto mb-3" />
+                  <p className="text-[#0E2F76]/60">No hostels or bunks available at the moment.</p>
+                  <p className="text-xs text-[#0E2F76]/40 mt-1">Contact admin for assistance.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-white px-6 py-5 border-t border-[#AAC0E1]/20 rounded-b-[32px]">
+              <Button
+                variant="primary"
+                fullWidth
+                disabled={!selectedBunkId || allocating || allocateLoading}
+                onClick={handleConfirmAllocation}
+              >
+                {allocating || allocateLoading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Loader2 size={18} className="animate-spin" /> Allocating...
+                  </div>
+                ) : (
+                  'Confirm Allocation'
+                )}
+              </Button>
+              <p className="text-xs text-[#0E2F76]/40 text-center mt-3">
+                You can only allocate one bunk. This action is final.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 };
