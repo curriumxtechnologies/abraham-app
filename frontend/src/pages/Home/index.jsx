@@ -467,8 +467,7 @@ const HomePage = () => {
               {complaints.slice(0, 2).map((complaint) => (
                 <div
                   key={complaint._id}
-                  onClick={() => navigate(`/complaints/${complaint._id}`)}
-                  className="bg-white rounded-[20px] p-4 shadow-sm border border-[#AAC0E1]/20 hover:shadow-md transition-all duration-300 cursor-pointer active:scale-[0.99]"
+                  className="bg-white rounded-[20px] p-4 shadow-sm border border-[#AAC0E1]/20"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-sm font-medium text-[#0E2F76]">{complaint.title}</h4>

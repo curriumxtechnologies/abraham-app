@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom';  // <-- removed
 import { useDispatch } from 'react-redux';
 import {
   Plus,
@@ -37,7 +37,7 @@ import {
 } from '../../slices/complaintApiSlice';
 
 const Complaints = () => {
-  const navigate = useNavigate();
+  // const navigate = useNavigate();  // <-- removed
   const dispatch = useDispatch();
 
   // ─── Local state ──────────────────────────────────────────────
@@ -55,6 +55,9 @@ const Complaints = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
+  // ─── State for viewing complaint details ─────────────────────
+  const [selectedComplaint, setSelectedComplaint] = useState(null);
+
   // ─── API calls ─────────────────────────────────────────────────
   const {
     data: complaintsData,
@@ -70,7 +73,7 @@ const Complaints = () => {
 
   // ─── Lock body scroll on modal open ──────────────────────────
   useEffect(() => {
-    if (showNewComplaint) {
+    if (showNewComplaint || selectedComplaint) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -78,7 +81,7 @@ const Complaints = () => {
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [showNewComplaint]);
+  }, [showNewComplaint, selectedComplaint]);
 
   // ─── UI helpers ──────────────────────────────────────────────
   const getStatusDisplay = (status) => {
@@ -117,8 +120,6 @@ const Complaints = () => {
   };
 
   const complaintTypes = Object.keys(typeIcons).map(label => ({ label }));
-  // Locations: We don't have a location field, we can either add or skip.
-  // For now, we'll use a fixed 'Room' but we could add location to model later.
   const complaintLocations = [
     { id: 'room', label: 'Room' },
     { id: 'bathroom', label: 'Bathroom' },
@@ -315,7 +316,7 @@ const Complaints = () => {
                 return (
                   <div
                     key={complaint._id}
-                    onClick={() => navigate(`/complaints/${complaint._id}`)}
+                    onClick={() => setSelectedComplaint(complaint)} // <-- open modal
                     className="bg-white rounded-[20px] p-4 shadow-sm border border-[#AAC0E1]/20 hover:shadow-md transition-all duration-300 cursor-pointer active:scale-[0.99]"
                   >
                     <div className="flex items-start justify-between mb-3">
@@ -539,6 +540,94 @@ const Complaints = () => {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Complaint Detail Modal ────────────────────────────── */}
+      {selectedComplaint && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        >
+          <div className="absolute inset-0 bg-black/50" onClick={() => setSelectedComplaint(null)} />
+          <div className="relative bg-white rounded-t-[30px] w-full max-w-md max-h-[80vh] overflow-y-auto animate-[slideUp_0.3s_ease-out] shadow-2xl">
+            <div className="p-6 pb-24">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-[#0E2F76]">Complaint Details</h2>
+                <button
+                  onClick={() => setSelectedComplaint(null)}
+                  className="w-10 h-10 rounded-full bg-[#AAC0E1]/10 flex items-center justify-center hover:bg-[#AAC0E1]/20 transition-all duration-300"
+                >
+                  <X size={20} className="text-[#0E2F76]" />
+                </button>
+              </div>
+
+              {/* Complaint Content */}
+              <div className="space-y-4">
+                {/* Status badge */}
+                <div className="flex justify-between items-center">
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedComplaint.status)}`}>
+                    {getStatusDisplay(selectedComplaint.status)}
+                  </span>
+                  <span className="text-xs text-[#0E2F76]/40">
+                    {new Date(selectedComplaint.createdAt).toLocaleString()}
+                  </span>
+                </div>
+
+                {/* Type & Icon */}
+                <div className="flex items-center gap-3">
+                  {(() => {
+                    const details = getTypeDetails(selectedComplaint.category || 'General');
+                    const Icon = details.icon;
+                    return (
+                      <div className={`w-12 h-12 rounded-full ${details.bg} flex items-center justify-center`}>
+                        <Icon size={24} className={details.color} />
+                      </div>
+                    );
+                  })()}
+                  <div>
+                    <p className="text-sm font-semibold text-[#0E2F76]">
+                      {selectedComplaint.category || 'General'}
+                    </p>
+                    <p className="text-xs text-[#0E2F76]/40">Issue Type</p>
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div>
+                  <h3 className="text-lg font-bold text-[#0E2F76]">{selectedComplaint.title}</h3>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <p className="text-sm text-[#0E2F76]/80 leading-relaxed whitespace-pre-wrap">
+                    {selectedComplaint.description}
+                  </p>
+                </div>
+
+                {/* User info & anonymity */}
+                <div className="flex items-center gap-2 pt-2 border-t border-[#AAC0E1]/20">
+                  {selectedComplaint.anonymous ? (
+                    <>
+                      <EyeOff size={16} className="text-[#AAC0E1]" />
+                      <span className="text-sm text-[#0E2F76]/60">Posted anonymously</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm font-medium text-[#0E2F76]">
+                        {selectedComplaint.user?.fullName || 'User'}
+                      </span>
+                      <span className="text-xs text-[#0E2F76]/40">•</span>
+                      <span className="text-xs text-[#0E2F76]/40">Posted publicly</span>
+                    </>
+                  )}
+                </div>
+
+                {/* Optional: any other fields like room number? Not present in model */}
+              </div>
             </div>
           </div>
         </div>
