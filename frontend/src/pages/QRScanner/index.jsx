@@ -22,7 +22,7 @@ import { useGetMyHistoryQuery, useCheckoutMutation, useReturnCheckinMutation } f
 
 const QRScanner = () => {
   const navigate = useNavigate();
-  const scannerRef = useRef(null);
+  const scannerContainerRef = useRef(null);
   const html5QrCodeRef = useRef(null);
 
   // ─── State ────────────────────────────────────────────────────
@@ -32,6 +32,7 @@ const QRScanner = () => {
   const [scanMessage, setScanMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameraError, setCameraError] = useState('');
+  const [isInitializing, setIsInitializing] = useState(false);
 
   // ─── API Hooks ────────────────────────────────────────────────
   const { data: allocationData, isLoading: allocLoading } = useGetMyAllocationQuery();
@@ -58,48 +59,76 @@ const QRScanner = () => {
     setScanMode(mode);
     setScanResult(null);
     setScanMessage('');
-    setIsScanning(true);
     setCameraError('');
+    setIsScanning(true);
+    setIsInitializing(true);
 
     try {
-      if (!html5QrCodeRef.current) {
-        html5QrCodeRef.current = new Html5Qrcode('qr-reader');
+      // Clean up any previous instance
+      if (html5QrCodeRef.current) {
+        try {
+          await html5QrCodeRef.current.stop();
+        } catch (e) {}
+        html5QrCodeRef.current = null;
       }
 
-      await html5QrCodeRef.current.start(
+      // Clear the container
+      if (scannerContainerRef.current) {
+        scannerContainerRef.current.innerHTML = '';
+      }
+
+      // Create new instance
+      const html5QrCode = new Html5Qrcode(scannerContainerRef.current);
+      html5QrCodeRef.current = html5QrCode;
+
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+      };
+
+      await html5QrCode.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
+        config,
         onScanSuccess,
         onScanError
       );
+
+      setIsInitializing(false);
     } catch (err) {
-      setCameraError('Unable to access camera. Please allow camera access.');
+      console.error('Scanner start error:', err);
+      setCameraError(
+        err.message || 'Unable to start camera. Please check permissions and try again.'
+      );
       setIsScanning(false);
-      console.error(err);
+      setIsInitializing(false);
     }
   };
 
-  const stopScanner = () => {
+  const stopScanner = async () => {
     if (html5QrCodeRef.current) {
-      html5QrCodeRef.current
-        .stop()
-        .then(() => {
-          setIsScanning(false);
-          setScanMode(null);
-        })
-        .catch((err) => console.error('Stop scanner error:', err));
+      try {
+        await html5QrCodeRef.current.stop();
+      } catch (e) {}
+      html5QrCodeRef.current = null;
     }
+    if (scannerContainerRef.current) {
+      scannerContainerRef.current.innerHTML = '';
+    }
+    setIsScanning(false);
+    setScanMode(null);
+    setIsInitializing(false);
   };
 
   // ─── QR scan callbacks ────────────────────────────────────────
   const onScanSuccess = async (decodedText) => {
-    // decodedText should be the QR token (JWT)
+    // Prevent multiple scans while processing
+    if (isProcessing) return;
+
     setIsProcessing(true);
     try {
-      // Call the appropriate API based on mode
       let result;
       if (scanMode === 'check-in') {
-        // return (check-in) does not require expectedReturnTime
         result = await returnCheckin().unwrap();
       } else if (scanMode === 'check-out') {
         const expectedReturn = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
@@ -108,39 +137,37 @@ const QRScanner = () => {
         throw new Error('Invalid scan mode');
       }
 
-      // Check response
       if (result && result.success) {
         setScanResult('success');
         setScanMessage(result.message || 'Action completed successfully.');
         await refetchHistory();
         // Stop scanner after success
-        stopScanner();
+        await stopScanner();
       } else {
         throw new Error(result?.message || 'Action failed');
       }
     } catch (error) {
       setScanResult('error');
       setScanMessage(error?.data?.message || error.message || 'Action failed. Please try again.');
+      // Keep scanner running so user can retry
     } finally {
       setIsProcessing(false);
     }
   };
 
   const onScanError = (err) => {
-    // Ignore continuous scanning errors; they are normal during scanning.
-    // Only log critical errors.
-    if (err && err.message && !err.message.includes('No MultiFormat Readers')) {
-      console.warn('QR scan error:', err);
+    // Ignore typical scanning errors
+    if (err && err.message && err.message.includes('No MultiFormat Readers')) {
+      return;
     }
+    console.warn('QR scan error:', err);
   };
 
   // ─── Cleanup on unmount ──────────────────────────────────────
   useEffect(() => {
     return () => {
       if (html5QrCodeRef.current) {
-        html5QrCodeRef.current
-          .stop()
-          .catch(() => {});
+        html5QrCodeRef.current.stop().catch(() => {});
         html5QrCodeRef.current = null;
       }
     };
@@ -209,29 +236,45 @@ const QRScanner = () => {
           // Scanner view
           <div className="px-6">
             <div className="relative bg-black rounded-[24px] overflow-hidden shadow-lg mb-4">
-              {/* QR reader container */}
-              <div id="qr-reader" className="w-full h-[400px]" />
-              {cameraError && (
-                <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-6">
+              {/* Camera container */}
+              <div ref={scannerContainerRef} className="w-full h-[400px] bg-black" />
+
+              {/* Overlay: Initializing */}
+              {isInitializing && (
+                <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
                   <div className="text-center">
-                    <XCircle size={48} className="text-red-400 mx-auto mb-3" />
-                    <p className="text-white text-sm mb-4">{cameraError}</p>
-                    <button
-                      onClick={() => startScanner(scanMode)}
-                      className="px-6 py-3 bg-white text-[#0E2F76] rounded-full text-sm font-medium"
-                    >
-                      Try Again
-                    </button>
-                    <button
-                      onClick={handleClose}
-                      className="ml-3 px-6 py-3 bg-transparent text-white border border-white rounded-full text-sm font-medium"
-                    >
-                      Cancel
-                    </button>
+                    <Loader2 size={40} className="animate-spin text-white" />
+                    <p className="text-white mt-2">Initializing camera...</p>
                   </div>
                 </div>
               )}
-              {isProcessing && (
+
+              {/* Overlay: Camera error */}
+              {cameraError && !isInitializing && (
+                <div className="absolute inset-0 bg-black/80 flex items-center justify-center p-6">
+                  <div className="text-center max-w-sm">
+                    <XCircle size={48} className="text-red-400 mx-auto mb-3" />
+                    <p className="text-white text-sm mb-4">{cameraError}</p>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      <button
+                        onClick={() => startScanner(scanMode)}
+                        className="px-6 py-3 bg-white text-[#0E2F76] rounded-full text-sm font-medium"
+                      >
+                        Try Again
+                      </button>
+                      <button
+                        onClick={handleClose}
+                        className="px-6 py-3 bg-transparent text-white border border-white rounded-full text-sm font-medium"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Overlay: Processing */}
+              {isProcessing && !cameraError && (
                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                   <div className="text-center">
                     <Loader2 size={40} className="animate-spin text-white" />
@@ -240,10 +283,12 @@ const QRScanner = () => {
                 </div>
               )}
             </div>
+
             <div className="flex items-center justify-between px-2">
               <button
                 onClick={handleClose}
-                className="px-6 py-3 bg-white rounded-[16px] text-[#0E2F76] font-medium shadow-sm border"
+                disabled={isProcessing}
+                className="px-6 py-3 bg-white rounded-[16px] text-[#0E2F76] font-medium shadow-sm border disabled:opacity-50"
               >
                 Cancel
               </button>
